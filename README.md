@@ -12,7 +12,7 @@ jxltypst uses [jxl-rs](https://github.com/libjxl/jxl-rs) to decode JPEG XL image
 Import `image-jxl` from the jxltypst package:
 
 ```typst
-#import "@preview/jxltypst:0.6.0": image-jxl
+#import "@preview/jxltypst:0.1.0": image-jxl
 ```
 
 `image-jxl()` is a wrapper to the native (`image()`)[https://typst.app/docs/reference/visualize/image/] function in Typst. It accepts the same arguments (i.e., `width`, `alt`, `fit`, etc.).
@@ -22,7 +22,7 @@ Import `image-jxl` from the jxltypst package:
 With Typst 0.15.0 or later, you can pass a `path` directly to `image-jxl`:
 
 ```typst
-#import "@preview/jxltypst:0.6.0": image-jxl
+#import "@preview/jxltypst:0.1.0": image-jxl
 
 #image-jxl(path("path/to/image.jxl"))
 ```
@@ -32,7 +32,7 @@ With Typst 0.15.0 or later, you can pass a `path` directly to `image-jxl`:
 You can also read the image as binary data and pass it to `image-jxl`:
 
 ```typst
-#import "@preview/jxltypst:0.6.0": image-jxl
+#import "@preview/jxltypst:0.1.0": image-jxl
 
 #let image-data = read("path/to/image.jxl", encoding: none)
 

@@ -63,11 +63,11 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
     let basic_info = decoder.basic_info().clone();
 
     let input_color_type = decoder.current_pixel_format().color_type;
-    if input_color_type == JxlColorType::Cmyk {
-        return Err("CMYK is not currently supported.".into());
-    }
 
-    // ! Doesn't work, has_alpha is always false, why?
+    // ! Doesn't work, has_alpha and has_black are always false, why?
+    // if input_color_type == JxlColorType::Cmyk {
+    //     return Err("CMYK is not currently supported.".into());
+    // }
     // let (color_type, encoding) = match (
     //     input_color_type.is_grayscale(),
     //     input_color_type.has_alpha(),
@@ -78,24 +78,21 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
     //     (false, false) => (JxlColorType::Rgb, "rgb8"),
     // };
 
-    let has_alpha = basic_info
-        .extra_channels
-        .iter()
-        .any(|channel| channel.ec_type == ExtraChannel::Alpha);
+    let mut has_alpha = false;
 
-    let color_type = match (input_color_type.is_grayscale(), has_alpha) {
-        (true, true) => JxlColorType::GrayscaleAlpha,
-        (true, false) => JxlColorType::Grayscale,
-        (false, true) => JxlColorType::Rgba,
-        (false, false) => JxlColorType::Rgb,
-    };
+    for channel in &basic_info.extra_channels {
+        match channel.ec_type {
+            ExtraChannel::Black => return Err("CMYK is not currently supported.".into()),
+            ExtraChannel::Alpha => has_alpha = true,
+            _ => {}
+        }
+    }
 
-    let encoding = match color_type {
-        JxlColorType::Grayscale => "luma8",
-        JxlColorType::GrayscaleAlpha => "lumaa8",
-        JxlColorType::Rgb => "rgb8",
-        JxlColorType::Rgba => "rgba8",
-        _ => unreachable!(),
+    let (color_type, encoding) = match (input_color_type.is_grayscale(), has_alpha) {
+        (true, true) => (JxlColorType::GrayscaleAlpha, "lumaa8"),
+        (true, false) => (JxlColorType::Grayscale, "luma8"),
+        (false, true) => (JxlColorType::Rgba, "rgba8"),
+        (false, false) => (JxlColorType::Rgb, "rgb8"),
     };
 
     let target_pixel_format = JxlPixelFormat {
@@ -166,7 +163,7 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
             size: (stride, height),
         };
 
-        let mut buffers = vec![JxlOutputBuffer::from_image_rect_mut(
+        let mut buffers = [JxlOutputBuffer::from_image_rect_mut(
             image_buffer.get_rect_mut(rect).into_raw(),
         )];
 

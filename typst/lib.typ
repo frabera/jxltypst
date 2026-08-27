@@ -34,6 +34,7 @@
 ) = {
   let imagebytes = _check_args(imagedata)
   let decoded = cbor(_plugin.jxl(imagebytes))
+  [Encoding: #decoded.encoding]
   image(
     decoded.pixels,
     format: (

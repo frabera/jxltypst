@@ -15,7 +15,7 @@ Import `image-jxl` from the jxltypst package:
 #import "@preview/jxltypst:0.1.0": image-jxl
 ```
 
-`image-jxl()` is a wrapper to the native (`image()`)[https://typst.app/docs/reference/visualize/image/] function in Typst. It accepts the same arguments (i.e., `width`, `alt`, `fit`, etc.).
+`image-jxl()` is a wrapper to the native [`image()`](https://typst.app/docs/reference/visualize/image/) function in Typst. It accepts the same arguments (i.e., `width`, `alt`, `fit`, etc.).
 
 ### Load from a path
 

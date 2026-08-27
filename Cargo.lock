@@ -114,20 +114,9 @@ version = "0.2.0"
 dependencies = [
  "ciborium",
  "jxl",
- "moxcms",
  "serde",
  "serde_bytes",
  "wasm-minimal-protocol",
-]
-
-[[package]]
-name = "moxcms"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aee701c0ffba6cc991c0fefda5ff5fca1bd2f2f4a928ffba9f825b9afceedbc3"
-dependencies = [
- "num-traits",
- "pxfm",
 ]
 
 [[package]]
@@ -158,12 +147,6 @@ checksum = "985e7ec9bb745e6ce6535b544d84d6cd6f7ad8bd711c398938ae983b91a766d9"
 dependencies = [
  "unicode-ident",
 ]
-
-[[package]]
-name = "pxfm"
-version = "0.1.30"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d55d956fa96f5ec02be2e13af0e20391a5aa83d6a074e3ad368959d0fab299ea"
 
 [[package]]
 name = "quote"

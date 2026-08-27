@@ -62,9 +62,47 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
 
     let basic_info = decoder.basic_info().clone();
 
-    // if basic_info.animation.is_some() {
-    //     return Err("Animated JXL images are not supported".into());
-    // }
+    let input_color_type = decoder.current_pixel_format().color_type;
+    if input_color_type == JxlColorType::Cmyk {
+        return Err("CMYK is not currently supported.".into());
+    }
+
+    // ! Doesn't work, has_alpha is always false, why?
+    // let (color_type, encoding) = match (
+    //     input_color_type.is_grayscale(),
+    //     input_color_type.has_alpha(),
+    // ) {
+    //     (true, true) => (JxlColorType::GrayscaleAlpha, "lumaa8"),
+    //     (true, false) => (JxlColorType::Grayscale, "luma8"),
+    //     (false, true) => (JxlColorType::Rgba, "rgba8"),
+    //     (false, false) => (JxlColorType::Rgb, "rgb8"),
+    // };
+
+    let has_alpha = basic_info
+        .extra_channels
+        .iter()
+        .any(|channel| channel.ec_type == ExtraChannel::Alpha);
+
+    let color_type = match (input_color_type.is_grayscale(), has_alpha) {
+        (true, true) => JxlColorType::GrayscaleAlpha,
+        (true, false) => JxlColorType::Grayscale,
+        (false, true) => JxlColorType::Rgba,
+        (false, false) => JxlColorType::Rgb,
+    };
+
+    let encoding = match color_type {
+        JxlColorType::Grayscale => "luma8",
+        JxlColorType::GrayscaleAlpha => "lumaa8",
+        JxlColorType::Rgb => "rgb8",
+        JxlColorType::Rgba => "rgba8",
+        _ => unreachable!(),
+    };
+
+    let target_pixel_format = JxlPixelFormat {
+        color_type,
+        color_data_format: Some(JxlDataFormat::U8 { bit_depth: 8 }),
+        extra_channel_format: vec![None; basic_info.extra_channels.len()],
+    };
 
     let (width, height) = basic_info.size;
 
@@ -72,36 +110,10 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
         return Err("Corrupted image (width, height)".into());
     }
 
-    let mut has_alpha = false;
-
-    for channel in &basic_info.extra_channels {
-        match channel.ec_type {
-            ExtraChannel::Alpha => has_alpha = true,
-            ExtraChannel::Black => {
-                return Err("CMYK files are not supported in this version.".into());
-            }
-            _ => {}
-        }
-    }
-    // let has_alpha = basic_info
-    //     .extra_channels
-    //     .iter()
-    //     .any(|channel| channel.ec_type == ExtraChannel::Alpha);
-
-    let (pixel_format, n_channels, encoding) = if has_alpha {
-        (
-            JxlPixelFormat::rgba8(basic_info.extra_channels.len()),
-            4,
-            "rgba8",
-        )
-    } else {
-        (JxlPixelFormat::rgb8(0), 3, "rgb8")
-    };
-
     // Configure the decoder's actual output format before obtaining the
     // color profile. The ICC returned below describes the pixels produced
     // by this decoder configuration.
-    decoder.set_pixel_format(pixel_format);
+    decoder.set_pixel_format(target_pixel_format);
 
     let icc = decoder
         .output_color_profile()
@@ -114,7 +126,7 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
         .into_owned();
 
     let stride = width
-        .checked_mul(n_channels)
+        .checked_mul(color_type.samples_per_pixel())
         // .ok_or_else(|| "Image width is too large".to_string())?;
         .ok_or("Image width is too large")?;
 
@@ -134,7 +146,6 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
                 if input.is_empty() {
                     return Err("Corrupted frame data".into());
                 }
-
                 decoder = fallback;
             }
 
@@ -169,7 +180,6 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
                     if input.is_empty() {
                         return Err("Corrupted pixel data".into());
                     }
-
                     decoder = fallback;
                 }
 
@@ -187,8 +197,6 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
         pixels.extend_from_slice(image_buffer.row(y));
     }
 
-    // debug_assert_eq!(pixels.len(), buffer_len);
-
     Ok(DecodedJxl {
         pixels,
         width: width as u32,
@@ -201,13 +209,10 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
 #[cfg_attr(target_arch = "wasm32", wasm_func)]
 pub fn jxl(image_data: &[u8]) -> Result<Vec<u8>, String> {
     let results = decode_jxl_to_vec_u8(image_data)?;
-
     let mut out = Vec::with_capacity(results.pixels.len() + results.icc.len() + 64);
 
-    // into_writer(&results, &mut out).map_err(|e| format!("CBOR serialization error: {}", e))?;
     into_writer(&results, &mut out)
         // .map_err(|e| format!("CBOR serialization error: {}", e))?;
         .map_err(|_| "CBOR serialization error".to_owned())?;
-
     Ok(out)
 }

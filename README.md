@@ -110,6 +110,7 @@ The main components are.
 
 - [`jxl-rs`](https://github.com/libjxl/jxl-rs): JPEG XL decoder and test images.
 - [`wasm-minimal-protocol`](https://github.com/astrale-sharp/wasm-minimal-protocol)
+- [`grayness`](https://github.com/nineff/grayness) for inspiration and Typst utility functions.
 
 ## License
 

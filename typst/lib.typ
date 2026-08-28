@@ -14,7 +14,11 @@
     read(imagedata, encoding: none)
   } else if type(imagedata) == bytes {
     imagedata
-  } else { panic("imagedata must be raw bytes or given as path") }
+  } else {
+    panic(
+      "imagedata argument must be given as path() or bytes: image-jxl(path(\"path/to/image.jxl\")) or image-jxl(read(\"path/to/image.jxl\", encoding: none))",
+    )
+  }
 }
 
 /// Insert a JXL image in the document
@@ -22,8 +26,7 @@
 ///  _Example:_
 /// ```example
 /// #import "@preview/jxl-loader:0.3.0": image-jxl
-/// <<<#let arturo = read("Arturo_Nieto-Dorantes.webp", encoding: none)
-/// #image-grayscale(arturo)
+/// <<<#image-jxl(path("path/to/image.jxl"))
 /// ```
 /// -> content
 #let image-jxl(

@@ -1,5 +1,9 @@
 use ciborium::ser::into_writer;
-use jxl::api::*;
+use jxl::api::states::{Initialized, WithFrameInfo, WithImageInfo};
+use jxl::api::{
+    JxlColorType, JxlDataFormat, JxlDecoder, JxlDecoderOptions, JxlOutputBuffer, JxlPixelFormat,
+    ProcessingResult,
+};
 use jxl::headers::extra_channels::ExtraChannel;
 use jxl::image::{Image, Rect};
 
@@ -30,6 +34,69 @@ pub enum Encoding {
     Lumaa8,
 }
 
+fn decode_header(input: &mut &[u8]) -> Result<JxlDecoder<WithImageInfo>, &'static str> {
+    let mut decoder = JxlDecoder::<Initialized>::new(JxlDecoderOptions::default());
+
+    loop {
+        match decoder.process(input, None) {
+            Ok(ProcessingResult::Complete { result }) => return Ok(result),
+
+            Ok(ProcessingResult::NeedsMoreInput { fallback, .. }) => {
+                if input.is_empty() {
+                    return Err("Corrupted header");
+                }
+
+                decoder = fallback;
+            }
+
+            Err(_) => return Err("Corrupted header"),
+        }
+    }
+}
+
+fn decode_frame_header(
+    mut decoder: JxlDecoder<WithImageInfo>,
+    input: &mut &[u8],
+) -> Result<JxlDecoder<WithFrameInfo>, &'static str> {
+    loop {
+        match decoder.process(input, None) {
+            Ok(ProcessingResult::Complete { result }) => return Ok(result),
+
+            Ok(ProcessingResult::NeedsMoreInput { fallback, .. }) => {
+                if input.is_empty() {
+                    return Err("Corrupted frame data");
+                }
+
+                decoder = fallback;
+            }
+
+            Err(_) => return Err("Corrupted frame data"),
+        }
+    }
+}
+
+fn decode_pixels(
+    mut decoder: JxlDecoder<WithFrameInfo>,
+    input: &mut &[u8],
+    buffers: &mut [JxlOutputBuffer<'_>],
+) -> Result<(), &'static str> {
+    loop {
+        match decoder.process(input, buffers, None) {
+            Ok(ProcessingResult::Complete { .. }) => return Ok(()),
+
+            Ok(ProcessingResult::NeedsMoreInput { fallback, .. }) => {
+                if input.is_empty() {
+                    return Err("Corrupted pixel data");
+                }
+
+                decoder = fallback;
+            }
+
+            Err(_) => return Err("Corrupted pixel data"),
+        }
+    }
+}
+
 /// Decode a static JXL image to tightly packed RGB[A]8 pixels.
 ///
 /// The returned pixel buffer is row-major, top-to-bottom, with
@@ -37,31 +104,11 @@ pub enum Encoding {
 ///
 /// `icc` is the ICC profile corresponding to the color space of the
 /// decoded RGB[A]8 pixels if available.
-pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
-    let options = JxlDecoderOptions::default();
-    let mut decoder = JxlDecoder::<states::Initialized>::new(options);
+pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
     let mut input = data;
 
     // Read the JXL header and basic image information.
-    let mut decoder = loop {
-        match decoder.process(&mut input, None) {
-            Ok(ProcessingResult::Complete { result }) => {
-                break result;
-            }
-
-            Ok(ProcessingResult::NeedsMoreInput { fallback, .. }) => {
-                if input.is_empty() {
-                    return Err("Corrupted header".into());
-                }
-                decoder = fallback;
-            }
-
-            Err(_) => {
-                // return Err(format!("Corrupted header: {}", e));
-                return Err("Corrupted header".into());
-            }
-        }
-    };
+    let mut decoder_with_image_info = decode_header(&mut input)?;
 
     // ! Doesn't work, has_alpha and has_black are always false, why?
     // let input_color_type = decoder.current_pixel_format().color_type;
@@ -78,15 +125,19 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
     //     (false, false) => (JxlColorType::Rgb, "rgb8"),
     // };
 
-    let basic_info = decoder.basic_info().clone();
+    let basic_info = decoder_with_image_info.basic_info().clone();
 
-    let is_grayscale = decoder.current_pixel_format().color_type.is_grayscale();
+    // ? is it robust?
+    let is_grayscale = decoder_with_image_info
+        .current_pixel_format()
+        .color_type
+        .is_grayscale();
+
     let mut has_alpha = false;
-
     for channel in &basic_info.extra_channels {
         match channel.ec_type {
-            ExtraChannel::Black => return Err("CMYK is not currently supported.".into()),
             ExtraChannel::Alpha => has_alpha = true,
+            ExtraChannel::Black => return Err("CMYK is not currently supported."),
             _ => {}
         }
     }
@@ -107,53 +158,32 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
     let (width, height) = basic_info.size;
 
     if width == 0 || height == 0 {
-        return Err("Corrupted image (width, height)".into());
+        return Err("Corrupted image (width, height)");
     }
 
     // Configure the decoder's actual output format before obtaining the
     // color profile. The ICC returned below describes the pixels produced
     // by this decoder configuration.
-    decoder.set_pixel_format(target_pixel_format);
+    decoder_with_image_info.set_pixel_format(target_pixel_format);
 
-    let icc = decoder
+    let icc = decoder_with_image_info
         .output_color_profile()
         .try_as_icc()
         .map(|icc| icc.into_owned());
 
     let stride = width
         .checked_mul(color_type.samples_per_pixel())
-        // .ok_or_else(|| "Image width is too large".to_string())?;
         .ok_or("Image width is too large")?;
 
     let buffer_len = stride
         .checked_mul(height)
-        // .ok_or_else(|| "Image dimensions are too large".to_string())?;
         .ok_or("Image dimensions are too large")?;
 
     // Advance the decoder to the frame/image data.
-    let mut decoder = loop {
-        match decoder.process(&mut input, None) {
-            Ok(ProcessingResult::Complete { result }) => {
-                break result;
-            }
+    let decoder_with_frame_info = decode_frame_header(decoder_with_image_info, &mut input)?;
 
-            Ok(ProcessingResult::NeedsMoreInput { fallback, .. }) => {
-                if input.is_empty() {
-                    return Err("Corrupted frame data".into());
-                }
-                decoder = fallback;
-            }
-
-            Err(_) => {
-                // return Err(format!("Corrupted frame data: {}", e));
-                return Err("Corrupted frame data".into());
-            }
-        }
-    };
-
-    let mut image_buffer = Image::<u8>::new((stride, height))
-        // .map_err(|e| format!("Buffer allocation failed: {}", e))?;
-        .map_err(|_| "Buffer allocation failed".to_owned())?;
+    let mut image_buffer =
+        Image::<u8>::new((stride, height)).map_err(|_| "Buffer allocation failed")?;
 
     {
         let rect = Rect {
@@ -165,25 +195,7 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
             image_buffer.get_rect_mut(rect).into_raw(),
         )];
 
-        loop {
-            match decoder.process(&mut input, &mut buffers, None) {
-                Ok(ProcessingResult::Complete { .. }) => {
-                    break;
-                }
-
-                Ok(ProcessingResult::NeedsMoreInput { fallback, .. }) => {
-                    if input.is_empty() {
-                        return Err("Corrupted pixel data".into());
-                    }
-                    decoder = fallback;
-                }
-
-                Err(_) => {
-                    // return Err(format!("Corrupted image: {}", e));
-                    return Err("Corrupted pixel data".into());
-                }
-            }
-        }
+        decode_pixels(decoder_with_frame_info, &mut input, &mut buffers)?;
     }
 
     let mut pixels = Vec::with_capacity(buffer_len);
@@ -202,13 +214,11 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
 }
 
 #[cfg_attr(target_arch = "wasm32", wasm_func)]
-pub fn jxl(image_data: &[u8]) -> Result<Vec<u8>, String> {
+pub fn jxl(image_data: &[u8]) -> Result<Vec<u8>, &'static str> {
     let results = decode_jxl_to_vec_u8(image_data)?;
     let icc_len = results.icc.as_ref().map_or(0, Vec::len);
     let mut out = Vec::with_capacity(results.pixels.len() + icc_len + 64);
 
-    into_writer(&results, &mut out)
-        // .map_err(|e| format!("CBOR serialization error: {}", e))?;
-        .map_err(|_| "CBOR serialization error".to_owned())?;
+    into_writer(&results, &mut out).map_err(|_| "CBOR serialization error")?;
     Ok(out)
 }

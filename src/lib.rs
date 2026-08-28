@@ -49,7 +49,6 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
                 if input.is_empty() {
                     return Err("Corrupted header".into());
                 }
-
                 decoder = fallback;
             }
 
@@ -60,11 +59,8 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
         }
     };
 
-    let basic_info = decoder.basic_info().clone();
-
-    let input_color_type = decoder.current_pixel_format().color_type;
-
     // ! Doesn't work, has_alpha and has_black are always false, why?
+    // let input_color_type = decoder.current_pixel_format().color_type;
     // if input_color_type == JxlColorType::Cmyk {
     //     return Err("CMYK is not currently supported.".into());
     // }
@@ -78,6 +74,9 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
     //     (false, false) => (JxlColorType::Rgb, "rgb8"),
     // };
 
+    let basic_info = decoder.basic_info().clone();
+
+    let is_grayscale = decoder.current_pixel_format().color_type.is_grayscale();
     let mut has_alpha = false;
 
     for channel in &basic_info.extra_channels {
@@ -88,7 +87,7 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
         }
     }
 
-    let (color_type, encoding) = match (input_color_type.is_grayscale(), has_alpha) {
+    let (color_type, encoding) = match (is_grayscale, has_alpha) {
         (true, true) => (JxlColorType::GrayscaleAlpha, "lumaa8"),
         (true, false) => (JxlColorType::Grayscale, "luma8"),
         (false, true) => (JxlColorType::Rgba, "rgba8"),

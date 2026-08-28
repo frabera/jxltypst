@@ -20,11 +20,6 @@
   } else { panic("imagedata must be raw bytes or given as path") }
 }
 
-/// Read a little-endian u32 from 4 bytes.
-#let _u32-le(data, offset) = {
-  data.at(offset) + data.at(offset + 1) * 256 + data.at(offset + 2) * 65536 + data.at(offset + 3) * 16777216
-}
-
 /// Insert a JXL image in the document
 ///
 ///  _Example:_
@@ -53,12 +48,19 @@
   //   panic("Invalid JXL decoder output: header is too short")
   // }
 
-  let width = _u32-le(data, 0)
-  let height = _u32-le(data, 4)
-
+  let width = int.from-bytes(
+    data.slice(0, count: 4),
+    signed: false,
+  )
+  let height = int.from-bytes(
+    data.slice(4, count: 4),
+    signed: false,
+  )
   let encoding = encodings.at(data.at(8))
-
-  let icc-len = _u32-le(data, 9)
+  let icc-len = int.from-bytes(
+    data.slice(9, count: 4),
+    signed: false,
+  )
 
   // if 13 + icc-len > data.len() {
   //   panic("Invalid JXL decoder output: ICC profile exceeds buffer")

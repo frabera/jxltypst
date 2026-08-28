@@ -18,8 +18,8 @@ pub struct DecodedJxl {
     /// Tightly packed row-major RGB/RGBA8 pixels.
     #[serde(with = "serde_bytes")]
     pub pixels: Vec<u8>,
-    pub width: u32,
-    pub height: u32,
+    pub width: usize,
+    pub height: usize,
     pub encoding: Encoding,
     #[serde(with = "serde_bytes", skip_serializing_if = "Option::is_none")]
     pub icc: Option<Vec<u8>>,
@@ -36,7 +36,6 @@ pub enum Encoding {
 
 fn decode_header(input: &mut &[u8]) -> Result<JxlDecoder<WithImageInfo>, &'static str> {
     let mut decoder = JxlDecoder::<Initialized>::new(JxlDecoderOptions::default());
-
     loop {
         match decoder.process(input, None) {
             Ok(ProcessingResult::Complete { result }) => return Ok(result),
@@ -99,11 +98,10 @@ fn decode_pixels(
 
 /// Decode a static JXL image to tightly packed RGB[A]8 pixels.
 ///
-/// The returned pixel buffer is row-major, top-to-bottom, with
-/// `width * height * (3 for rgb or 4 for rgba)` bytes.
+/// The returned pixel buffer is tightly packed, row-major, top-to-bottom.
+/// Each pixel contains 1, 2, 3, or 4 bytes depending on `encoding`.
 ///
-/// `icc` is the ICC profile corresponding to the color space of the
-/// decoded RGB[A]8 pixels if available.
+/// `icc` is the ICC profile corresponding to the color space of the decoded image, if available.
 pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
     let mut input = data;
 
@@ -125,7 +123,7 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
     //     (false, false) => (JxlColorType::Rgb, "rgb8"),
     // };
 
-    let basic_info = decoder_with_image_info.basic_info().clone();
+    let basic_info = decoder_with_image_info.basic_info();
 
     // ? is it robust?
     let is_grayscale = decoder_with_image_info
@@ -169,7 +167,7 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
     let icc = decoder_with_image_info
         .output_color_profile()
         .try_as_icc()
-        .map(|icc| icc.into_owned());
+        .map(std::borrow::Cow::into_owned);
 
     let stride = width
         .checked_mul(color_type.samples_per_pixel())
@@ -206,8 +204,8 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
 
     Ok(DecodedJxl {
         pixels,
-        width: width as u32,
-        height: height as u32,
+        width,
+        height,
         encoding,
         icc,
     })

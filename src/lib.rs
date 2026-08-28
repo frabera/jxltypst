@@ -1,4 +1,3 @@
-use ciborium::ser::into_writer;
 use jxl::api::*;
 use jxl::headers::extra_channels::ExtraChannel;
 use jxl::image::{Image, Rect};
@@ -9,25 +8,19 @@ use wasm_minimal_protocol::{initiate_protocol, wasm_func};
 #[cfg(target_arch = "wasm32")]
 initiate_protocol!();
 
-#[derive(serde::Serialize)]
 pub struct DecodedJxl {
-    /// Tightly packed row-major RGB/RGBA8 pixels.
-    #[serde(with = "serde_bytes")]
-    pub pixels: Vec<u8>,
+    pub jxl_image: Image<u8>,
     pub width: u32,
     pub height: u32,
     pub encoding: Encoding,
-    #[serde(with = "serde_bytes", skip_serializing_if = "Option::is_none")]
     pub icc: Option<Vec<u8>>,
 }
 
-#[derive(serde::Serialize)]
-#[serde(rename_all = "lowercase")]
 pub enum Encoding {
-    Rgb8,
-    Rgba8,
-    Luma8,
-    Lumaa8,
+    Rgb8 = 0,
+    Rgba8 = 1,
+    Luma8 = 2,
+    Lumaa8 = 3,
 }
 
 /// Decode a static JXL image to tightly packed RGB[A]8 pixels.
@@ -37,7 +30,8 @@ pub enum Encoding {
 ///
 /// `icc` is the ICC profile corresponding to the color space of the
 /// decoded RGB[A]8 pixels if available.
-pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
+#[cfg_attr(target_arch = "wasm32", wasm_func)]
+pub fn jxl(data: &[u8]) -> Result<Vec<u8>, String> {
     let options = JxlDecoderOptions::default();
     let mut decoder = JxlDecoder::<states::Initialized>::new(options);
     let mut input = data;
@@ -120,16 +114,6 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
         .try_as_icc()
         .map(|icc| icc.into_owned());
 
-    let stride = width
-        .checked_mul(color_type.samples_per_pixel())
-        // .ok_or_else(|| "Image width is too large".to_string())?;
-        .ok_or("Image width is too large")?;
-
-    let buffer_len = stride
-        .checked_mul(height)
-        // .ok_or_else(|| "Image dimensions are too large".to_string())?;
-        .ok_or("Image dimensions are too large")?;
-
     // Advance the decoder to the frame/image data.
     let mut decoder = loop {
         match decoder.process(&mut input, None) {
@@ -150,6 +134,18 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
             }
         }
     };
+
+    let samples_per_pixel = color_type.samples_per_pixel();
+
+    let stride = width
+        .checked_mul(samples_per_pixel)
+        // .ok_or_else(|| "Image width is too large".to_string())?;
+        .ok_or("Image width is too large")?;
+
+    let buffer_len = stride
+        .checked_mul(height)
+        // .ok_or_else(|| "Image dimensions are too large".to_string())?;
+        .ok_or("Image dimensions are too large")?;
 
     let mut image_buffer = Image::<u8>::new((stride, height))
         // .map_err(|e| format!("Buffer allocation failed: {}", e))?;
@@ -186,29 +182,39 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
         }
     }
 
-    let mut pixels = Vec::with_capacity(buffer_len);
+    let icc_len = icc.as_ref().map_or(0, Vec::len);
 
-    for y in 0..height {
-        pixels.extend_from_slice(image_buffer.row(y));
+    // FORMAT:
+    // width: u32 -> 4
+    // height: u32 -> 4
+    // encoding: u8 -> 1
+    // icc_len: u32 -> 4 (maybe smaller?)
+    // icc: Vec<u8> -> icc_len
+    // pixels: Vec<u8> -> buffer_len (width * height * samples_per_pixel)
+
+    let mut out = Vec::with_capacity(4 + 4 + 1 + 4 + icc_len + buffer_len);
+
+    // width
+    out.extend_from_slice(&(width as u32).to_le_bytes());
+
+    // height
+    out.extend_from_slice(&(height as u32).to_le_bytes());
+
+    // encoding
+    out.push(encoding as u8);
+
+    // ICC length
+    out.extend_from_slice(&(icc_len as u32).to_le_bytes());
+
+    // ICC data
+    if let Some(icc) = &icc {
+        out.extend_from_slice(icc);
     }
 
-    Ok(DecodedJxl {
-        pixels,
-        width: width as u32,
-        height: height as u32,
-        encoding,
-        icc,
-    })
-}
+    // Pixel data
+    for y in 0..height {
+        out.extend_from_slice(image_buffer.row(y));
+    }
 
-#[cfg_attr(target_arch = "wasm32", wasm_func)]
-pub fn jxl(image_data: &[u8]) -> Result<Vec<u8>, String> {
-    let results = decode_jxl_to_vec_u8(image_data)?;
-    let icc_len = results.icc.as_ref().map_or(0, Vec::len);
-    let mut out = Vec::with_capacity(results.pixels.len() + icc_len + 64);
-
-    into_writer(&results, &mut out)
-        // .map_err(|e| format!("CBOR serialization error: {}", e))?;
-        .map_err(|_| "CBOR serialization error".to_owned())?;
     Ok(out)
 }

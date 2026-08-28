@@ -41,7 +41,13 @@
       height: decoded.height,
       encoding: decoded.encoding,
     ),
-    icc: decoded.icc,
     ..args,
+    ..(
+      if decoded.at("icc", default: none) != none {
+        (icc: decoded.icc)
+      } else {
+        ()
+      }
+    ),
   )
 }

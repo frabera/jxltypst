@@ -18,12 +18,12 @@ pub struct DecodedJxl {
     pub width: u32,
     pub height: u32,
 
-    /// Either "rgb8" or "rgba8".
+    /// Either "rgb8", "rgba8".
     pub encoding: &'static str,
 
     /// ICC profile describing the color space of `pixels`.
-    #[serde(with = "serde_bytes")]
-    pub icc: Vec<u8>, // option?
+    #[serde(with = "serde_bytes", skip_serializing_if = "Option::is_none")]
+    pub icc: Option<Vec<u8>>,
 }
 
 /// Decode a static JXL image to tightly packed RGB[A]8 pixels.
@@ -32,7 +32,7 @@ pub struct DecodedJxl {
 /// `width * height * (3 for rgb or 4 for rgba)` bytes.
 ///
 /// `icc` is the ICC profile corresponding to the color space of the
-/// decoded RGB[A]8 pixels and can be passed along to consumers.
+/// decoded RGB[A]8 pixels if available.
 pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
     let options = JxlDecoderOptions::default();
     let mut decoder = JxlDecoder::<states::Initialized>::new(options);
@@ -114,12 +114,7 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
     let icc = decoder
         .output_color_profile()
         .try_as_icc()
-        // or i don't return anything (empty u8 vec as sentinel value)
-        // .map(|icc| icc.into_owned())
-        // .unwrap_or_default();
-        .ok_or("Could not convert JXL color profile to ICC")?
-        // .ok_or_else(|| "Could not convert JXL color profile to ICC".to_string())?
-        .into_owned();
+        .map(|icc| icc.into_owned());
 
     let stride = width
         .checked_mul(color_type.samples_per_pixel())
@@ -205,7 +200,8 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
 #[cfg_attr(target_arch = "wasm32", wasm_func)]
 pub fn jxl(image_data: &[u8]) -> Result<Vec<u8>, String> {
     let results = decode_jxl_to_vec_u8(image_data)?;
-    let mut out = Vec::with_capacity(results.pixels.len() + results.icc.len() + 64);
+    let icc_len = results.icc.as_ref().map_or(0, Vec::len);
+    let mut out = Vec::with_capacity(results.pixels.len() + icc_len + 64);
 
     into_writer(&results, &mut out)
         // .map_err(|e| format!("CBOR serialization error: {}", e))?;

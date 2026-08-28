@@ -21,7 +21,7 @@
 ///
 ///  _Example:_
 /// ```example
-/// #import "@preview/jxl-loader:0.2.1": image-jxl
+/// #import "@preview/jxl-loader:0.3.0": image-jxl
 /// <<<#let arturo = read("Arturo_Nieto-Dorantes.webp", encoding: none)
 /// #image-grayscale(arturo)
 /// ```

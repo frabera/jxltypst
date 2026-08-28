@@ -15,7 +15,7 @@ jxl-loader uses [jxl-rs](https://github.com/libjxl/jxl-rs) to decode JPEG XL ima
 Import `jxl-loader` from the jxl-loader package:
 
 ```typst
-#import "@preview/jxl-loader:0.2.1": image-jxl
+#import "@preview/jxl-loader:0.3.0": image-jxl
 ```
 
 `image-jxl()` is a wrapper to the native [`image()`](https://typst.app/docs/reference/visualize/image/) function in Typst. It accepts the same arguments (i.e., `width`, `alt`, `fit`, etc.).
@@ -25,7 +25,7 @@ Import `jxl-loader` from the jxl-loader package:
 With Typst 0.15.0 or later, you can pass a `path` directly to `image-jxl`:
 
 ```typst
-#import "@preview/jxl-loader:0.2.1": image-jxl
+#import "@preview/jxl-loader:0.3.0": image-jxl
 
 #image-jxl(path("path/to/image.jxl"))
 ```
@@ -35,7 +35,7 @@ With Typst 0.15.0 or later, you can pass a `path` directly to `image-jxl`:
 You can also read the image as binary data and pass it to `image-jxl`:
 
 ```typst
-#import "@preview/jxl-loader:0.2.1": image-jxl
+#import "@preview/jxl-loader:0.3.0": image-jxl
 
 #let image-data = read("path/to/image.jxl", encoding: none)
 

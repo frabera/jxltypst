@@ -14,16 +14,20 @@ pub struct DecodedJxl {
     /// Tightly packed row-major RGB/RGBA8 pixels.
     #[serde(with = "serde_bytes")]
     pub pixels: Vec<u8>,
-
     pub width: u32,
     pub height: u32,
-
-    /// Either "rgb8", "rgba8".
-    pub encoding: &'static str,
-
-    /// ICC profile describing the color space of `pixels`.
+    pub encoding: Encoding,
     #[serde(with = "serde_bytes", skip_serializing_if = "Option::is_none")]
     pub icc: Option<Vec<u8>>,
+}
+
+#[derive(serde::Serialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Encoding {
+    Rgb8,
+    Rgba8,
+    Luma8,
+    Lumaa8,
 }
 
 /// Decode a static JXL image to tightly packed RGB[A]8 pixels.
@@ -88,10 +92,10 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, String> {
     }
 
     let (color_type, encoding) = match (is_grayscale, has_alpha) {
-        (true, true) => (JxlColorType::GrayscaleAlpha, "lumaa8"),
-        (true, false) => (JxlColorType::Grayscale, "luma8"),
-        (false, true) => (JxlColorType::Rgba, "rgba8"),
-        (false, false) => (JxlColorType::Rgb, "rgb8"),
+        (true, true) => (JxlColorType::GrayscaleAlpha, Encoding::Lumaa8),
+        (true, false) => (JxlColorType::Grayscale, Encoding::Luma8),
+        (false, true) => (JxlColorType::Rgba, Encoding::Rgba8),
+        (false, false) => (JxlColorType::Rgb, Encoding::Rgb8),
     };
 
     let target_pixel_format = JxlPixelFormat {

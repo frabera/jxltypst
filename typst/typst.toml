@@ -1,6 +1,6 @@
 [package]
 name = "jxltypst"
-version = "0.2.0"
+version = "0.2.1"
 compiler = "0.15.0"
 entrypoint = "lib.typ"
 authors = ["frabera"]

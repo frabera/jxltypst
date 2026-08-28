@@ -4,15 +4,9 @@
 
 jxl-loader uses [jxl-rs](https://github.com/libjxl/jxl-rs) to decode JPEG XL images and [wasm-minimal-protocol](https://github.com/astrale-sharp/wasm-minimal-protocol) to expose the decoder to Typst.
 
-> [!NOTE]
-> jxl-loader is currently a proof of concept and may have limitations compared to the image formats natively supported by Typst.
-
 ## Usage
 
-> [!NOTE]
-> jxl-loader is not yet available in Typst Universe. Install it locally (download and install or import the `typst` folder.)
-
-Import `jxl-loader` from the jxl-loader package:
+Import `image-jxl` from the jxl-loader package:
 
 ```typst
 #import "@preview/jxl-loader:0.2.1": image-jxl
@@ -73,7 +67,7 @@ cargo build --release --target wasm32-unknown-unknown
 The resulting WASM binary will be located at:
 
 ```text
-target/wasm32-unknown-unknown/release/jxl-loader.wasm
+target/wasm32-unknown-unknown/release/jxl_loader.wasm
 ```
 
 ### Optimizing the WASM binary
@@ -82,12 +76,12 @@ jxl-loader can be optimized with [`wasm-opt`](https://github.com/WebAssembly/bin
 
 ```sh
 wasm-opt \
-  ./target/wasm32-unknown-unknown/release/jxl-loader.wasm \
+  ./target/wasm32-unknown-unknown/release/jxl_loader.wasm \
   --enable-simd \
   --enable-bulk-memory \
   --all-features \
   -O4 \
-  -o typst/jxl-loader_opt.wasm
+  -o typst/jxl_loader_opt.wasm
 ```
 
 ### Using `just`

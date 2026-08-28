@@ -1,5 +1,5 @@
 [package]
-name = "jxltypst"
+name = "jxl-loader"
 version = "0.2.1"
 # tombi: lint.rules.unused-noqa.disabled = true
 # tombi: lint.rules.deprecated.disabled = true

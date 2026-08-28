@@ -86,6 +86,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "jxl-loader"
+version = "0.2.1"
+dependencies = [
+ "ciborium",
+ "jxl",
+ "serde",
+ "serde_bytes",
+ "wasm-minimal-protocol",
+]
+
+[[package]]
 name = "jxl_macros"
 version = "0.6.0"
 source = "git+https://github.com/libjxl/jxl-rs?rev=28d42ed6555f30bdb398d6854ae86a01b2df3c5a#28d42ed6555f30bdb398d6854ae86a01b2df3c5a"
@@ -106,17 +117,6 @@ version = "0.6.0"
 source = "git+https://github.com/libjxl/jxl-rs?rev=28d42ed6555f30bdb398d6854ae86a01b2df3c5a#28d42ed6555f30bdb398d6854ae86a01b2df3c5a"
 dependencies = [
  "jxl_simd",
-]
-
-[[package]]
-name = "jxltypst"
-version = "0.2.1"
-dependencies = [
- "ciborium",
- "jxl",
- "serde",
- "serde_bytes",
- "wasm-minimal-protocol",
 ]
 
 [[package]]

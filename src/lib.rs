@@ -184,7 +184,13 @@ pub fn jxl(data: &[u8]) -> Result<Vec<u8>, &'static str> {
     // icc: Vec<u8> -> icc_len
     // pixels: Vec<u8> -> buffer_len (width * height * samples_per_pixel)
 
-    let total_len = 4 + 4 + 1 + 4 + icc_len + buffer_len;
+    // let total_len = 4 + 4 + 1 + 4 + icc_len + buffer_len;
+    let total_len = std::mem::size_of_val(&width)
+        + std::mem::size_of_val(&height)
+        + std::mem::size_of_val(&encoding)
+        + std::mem::size_of_val(&icc_len)
+        + icc_len
+        + buffer_len;
 
     let mut out = Vec::with_capacity(total_len);
 

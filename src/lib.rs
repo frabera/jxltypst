@@ -5,7 +5,6 @@ use jxl::api::{
     ProcessingResult,
 };
 use jxl::headers::extra_channels::ExtraChannel;
-use jxl::image::{Image, Rect};
 
 #[cfg(target_arch = "wasm32")]
 use wasm_minimal_protocol::{initiate_protocol, wasm_func};
@@ -180,7 +179,18 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
     // Advance the decoder to the frame/image data.
     let decoder_with_frame_info = decode_frame_header(decoder_with_image_info, &mut input)?;
 
-    let mut pixels = vec![0u8; buffer_len];
+    // let mut pixels = vec![0u8; buffer_len];
+    let mut pixels = Vec::with_capacity(buffer_len);
+
+    // SAFETY: `JxlDecoder<WithFrameInfo>::process` guarantees that it populates
+    // exactly the appropriate part of the supplied output buffers. This buffer
+    // covers the entire tightly packed output (`height` rows × `stride` bytes),
+    // so a successful decode initializes all `buffer_len` bytes before `pixels`
+    // is read.
+    #[allow(clippy::uninit_vec)]
+    unsafe {
+        pixels.set_len(buffer_len);
+    }
 
     let mut buffers = [JxlOutputBuffer::new(&mut pixels, height, stride)];
 

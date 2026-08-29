@@ -167,7 +167,7 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
     let icc = decoder_with_image_info
         .output_color_profile()
         .try_as_icc()
-        .map(std::borrow::Cow::into_owned);
+        .map(std::borrow::Cow::into_owned); // what happens if it's NO?
 
     let stride = width
         .checked_mul(color_type.samples_per_pixel())
@@ -180,27 +180,11 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
     // Advance the decoder to the frame/image data.
     let decoder_with_frame_info = decode_frame_header(decoder_with_image_info, &mut input)?;
 
-    let mut image_buffer =
-        Image::<u8>::new((stride, height)).map_err(|_| "Buffer allocation failed")?;
+    let mut pixels = vec![0u8; buffer_len];
 
-    {
-        let rect = Rect {
-            origin: (0, 0),
-            size: (stride, height),
-        };
+    let mut buffers = [JxlOutputBuffer::new(&mut pixels, height, stride)];
 
-        let mut buffers = [JxlOutputBuffer::from_image_rect_mut(
-            image_buffer.get_rect_mut(rect).into_raw(),
-        )];
-
-        decode_pixels(decoder_with_frame_info, &mut input, &mut buffers)?;
-    }
-
-    let mut pixels = Vec::with_capacity(buffer_len);
-
-    for y in 0..height {
-        pixels.extend_from_slice(image_buffer.row(y));
-    }
+    decode_pixels(decoder_with_frame_info, &mut input, &mut buffers)?;
 
     Ok(DecodedJxl {
         pixels,

@@ -44,10 +44,6 @@
   // 9..13   icc_len     u32 LE
   // 13..    icc + pixels
 
-  // if data.len() < 13 {
-  //   panic("Invalid JXL decoder output: header is too short")
-  // }
-
   let width = int.from-bytes(
     data.slice(0, count: 4),
     signed: false,

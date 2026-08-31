@@ -88,38 +88,17 @@ fn decode_pixels(
     }
 }
 
-/// Decode a static JXL image to tightly packed RGB[A]8 pixels.
+/// Decode a static JXL image to tightly packed RGB[A]8 or LUMA[A]8 pixels.
 ///
-/// The returned pixel buffer is row-major, top-to-bottom, with
-/// `width * height * (3 for rgb or 4 for rgba)` bytes.
+/// The returned pixel buffer is tightly packed, row-major, top-to-bottom.
+/// Each pixel contains 1, 2, 3, or 4 bytes depending on `encoding`.
 ///
-/// `icc` is the ICC profile corresponding to the color space of the
-/// decoded RGB[A]8 pixels if available.
+/// `icc` is the ICC profile corresponding to the color space of the decoded image, _if available_.
 #[cfg_attr(target_arch = "wasm32", wasm_func)]
-pub fn jxl(data: &[u8]) -> Result<Vec<u8>, &'static str> {
-    let mut input = data;
-
-    // Read the JXL header and basic image information.
-    let mut decoder_with_image_info = decode_header(&mut input)?;
-
-    // ! Doesn't work, has_alpha and has_black are always false, why?
-    // let input_color_type = decoder.current_pixel_format().color_type;
-    // if input_color_type == JxlColorType::Cmyk {
-    //     return Err("CMYK is not currently supported.".into());
-    // }
-    // let (color_type, encoding) = match (
-    //     input_color_type.is_grayscale(),
-    //     input_color_type.has_alpha(),
-    // ) {
-    //     (true, true) => (JxlColorType::GrayscaleAlpha, "lumaa8"),
-    //     (true, false) => (JxlColorType::Grayscale, "luma8"),
-    //     (false, true) => (JxlColorType::Rgba, "rgba8"),
-    //     (false, false) => (JxlColorType::Rgb, "rgb8"),
-    // };
-
+pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
+    let mut decoder_with_image_info = decode_header(&mut data)?;
     let basic_info = decoder_with_image_info.basic_info();
 
-    // ? is it robust?
     let is_grayscale = decoder_with_image_info
         .current_pixel_format()
         .color_type
@@ -172,7 +151,7 @@ pub fn jxl(data: &[u8]) -> Result<Vec<u8>, &'static str> {
         .ok_or("Image dimensions are too large")?;
 
     // Advance the decoder to the frame/image data.
-    let decoder_with_frame_info = decode_frame_header(decoder_with_image_info, &mut input)?;
+    let decoder_with_frame_info = decode_frame_header(decoder_with_image_info, &mut data)?;
 
     let icc_len = icc.as_ref().map_or(0, Vec::len);
 
@@ -184,20 +163,13 @@ pub fn jxl(data: &[u8]) -> Result<Vec<u8>, &'static str> {
     // icc: Vec<u8> -> icc_len
     // pixels: Vec<u8> -> buffer_len (width * height * samples_per_pixel)
 
-    // let total_len = 4 + 4 + 1 + 4 + icc_len + buffer_len;
-    let total_len = std::mem::size_of_val(&width)
-        + std::mem::size_of_val(&height)
-        + std::mem::size_of_val(&encoding)
-        + std::mem::size_of_val(&icc_len)
-        + icc_len
-        + buffer_len;
-
-    let mut out = Vec::with_capacity(total_len);
+    let total_len = 4 + 4 + 1 + 4 + icc_len + buffer_len;
 
     // SAFETY:
     // We immediately initialize every byte of `out` either through the
     // header/ICC writes below or through JxlOutputBuffer for the pixel
     // region before `out` is returned.
+    let mut out = Vec::with_capacity(total_len);
     #[allow(clippy::uninit_vec)]
     unsafe {
         out.set_len(total_len);
@@ -232,7 +204,6 @@ pub fn jxl(data: &[u8]) -> Result<Vec<u8>, &'static str> {
 
     let mut buffers = [JxlOutputBuffer::new(pixels, height, stride)];
 
-    decode_pixels(decoder_with_frame_info, &mut input, &mut buffers)?;
-
+    decode_pixels(decoder_with_frame_info, &mut data, &mut buffers)?;
     Ok(out)
 }

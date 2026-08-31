@@ -95,36 +95,16 @@ fn decode_pixels(
     }
 }
 
-/// Decode a static JXL image to tightly packed RGB[A]8 pixels.
+/// Decode a static JXL image to tightly packed RGB[A]8 or LUMA[A]8 pixels.
 ///
 /// The returned pixel buffer is tightly packed, row-major, top-to-bottom.
 /// Each pixel contains 1, 2, 3, or 4 bytes depending on `encoding`.
 ///
-/// `icc` is the ICC profile corresponding to the color space of the decoded image, if available.
-pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
-    let mut input = data;
-
-    // Read the JXL header and basic image information.
-    let mut decoder_with_image_info = decode_header(&mut input)?;
-
-    // ! Doesn't work, has_alpha and has_black are always false, why?
-    // let input_color_type = decoder.current_pixel_format().color_type;
-    // if input_color_type == JxlColorType::Cmyk {
-    //     return Err("CMYK is not currently supported.".into());
-    // }
-    // let (color_type, encoding) = match (
-    //     input_color_type.is_grayscale(),
-    //     input_color_type.has_alpha(),
-    // ) {
-    //     (true, true) => (JxlColorType::GrayscaleAlpha, "lumaa8"),
-    //     (true, false) => (JxlColorType::Grayscale, "luma8"),
-    //     (false, true) => (JxlColorType::Rgba, "rgba8"),
-    //     (false, false) => (JxlColorType::Rgb, "rgb8"),
-    // };
-
+/// `icc` is the ICC profile corresponding to the color space of the decoded image, _if available_.
+pub fn decode_jxl_to_vec_u8(mut data: &[u8]) -> Result<DecodedJxl, &'static str> {
+    let mut decoder_with_image_info = decode_header(&mut data)?;
     let basic_info = decoder_with_image_info.basic_info();
 
-    // ? is it robust?
     let is_grayscale = decoder_with_image_info
         .current_pixel_format()
         .color_type
@@ -140,10 +120,10 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
     }
 
     let (color_type, encoding) = match (is_grayscale, has_alpha) {
-        (true, true) => (JxlColorType::GrayscaleAlpha, Encoding::Lumaa8),
-        (true, false) => (JxlColorType::Grayscale, Encoding::Luma8),
-        (false, true) => (JxlColorType::Rgba, Encoding::Rgba8),
         (false, false) => (JxlColorType::Rgb, Encoding::Rgb8),
+        (false, true) => (JxlColorType::Rgba, Encoding::Rgba8),
+        (true, false) => (JxlColorType::Grayscale, Encoding::Luma8),
+        (true, true) => (JxlColorType::GrayscaleAlpha, Encoding::Lumaa8),
     };
 
     let target_pixel_format = JxlPixelFormat {
@@ -166,7 +146,7 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
     let icc = decoder_with_image_info
         .output_color_profile()
         .try_as_icc()
-        .map(std::borrow::Cow::into_owned); // what happens if it's NO?
+        .map(std::borrow::Cow::into_owned);
 
     let stride = width
         .checked_mul(color_type.samples_per_pixel())
@@ -177,24 +157,21 @@ pub fn decode_jxl_to_vec_u8(data: &[u8]) -> Result<DecodedJxl, &'static str> {
         .ok_or("Image dimensions are too large")?;
 
     // Advance the decoder to the frame/image data.
-    let decoder_with_frame_info = decode_frame_header(decoder_with_image_info, &mut input)?;
-
-    // let mut pixels = vec![0u8; buffer_len];
-    let mut pixels = Vec::with_capacity(buffer_len);
+    let decoder_with_frame_info = decode_frame_header(decoder_with_image_info, &mut data)?;
 
     // SAFETY: `JxlDecoder<WithFrameInfo>::process` guarantees that it populates
     // exactly the appropriate part of the supplied output buffers. This buffer
     // covers the entire tightly packed output (`height` rows × `stride` bytes),
     // so a successful decode initializes all `buffer_len` bytes before `pixels`
     // is read.
+    let mut pixels = Vec::with_capacity(buffer_len);
     #[allow(clippy::uninit_vec)]
     unsafe {
         pixels.set_len(buffer_len);
     }
-
     let mut buffers = [JxlOutputBuffer::new(&mut pixels, height, stride)];
 
-    decode_pixels(decoder_with_frame_info, &mut input, &mut buffers)?;
+    decode_pixels(decoder_with_frame_info, &mut data, &mut buffers)?;
 
     Ok(DecodedJxl {
         pixels,

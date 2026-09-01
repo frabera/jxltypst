@@ -44,39 +44,11 @@ fn decode_frame_header(
     loop {
         match decoder.process(input, None) {
             Ok(ProcessingResult::Complete { result }) => return Ok(result),
-fn decode_header(input: &mut &[u8]) -> Result<JxlDecoder<WithImageInfo>, &'static str> {
-    let mut decoder = JxlDecoder::<Initialized>::new(JxlDecoderOptions::default());
-    loop {
-        match decoder.process(input, None) {
-            Ok(ProcessingResult::Complete { result }) => return Ok(result),
-
-            Ok(ProcessingResult::NeedsMoreInput { fallback, .. }) => {
-                if input.is_empty() {
-                    return Err("Corrupted header");
-                }
-
-                decoder = fallback;
-            }
-
-            Err(_) => return Err("Corrupted header"),
-        }
-    }
-}
-
-fn decode_frame_header(
-    mut decoder: JxlDecoder<WithImageInfo>,
-    input: &mut &[u8],
-) -> Result<JxlDecoder<WithFrameInfo>, &'static str> {
-    loop {
-        match decoder.process(input, None) {
-            Ok(ProcessingResult::Complete { result }) => return Ok(result),
 
             Ok(ProcessingResult::NeedsMoreInput { fallback, .. }) => {
                 if input.is_empty() {
                     return Err("Corrupted frame data");
-                    return Err("Corrupted frame data");
                 }
-
 
                 decoder = fallback;
             }
@@ -153,26 +125,20 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
         .color_type
         .is_grayscale();
 
-    let is_grayscale = decoder_with_image_info
-        .current_pixel_format()
-        .color_type
-        .is_grayscale();
-
     let mut has_alpha = false;
     for channel in &basic_info.extra_channels {
         match channel.ec_type {
             ExtraChannel::Alpha => has_alpha = true,
-            ExtraChannel::Black => return Err("CMYK is not currently supported."),
             ExtraChannel::Black => return Err("CMYK is not currently supported."),
             _ => {}
         }
     }
 
     let (color_type, encoding) = match (is_grayscale, has_alpha) {
-        (false, false) => (JxlColorType::Rgb, Encoding::Rgb8),
-        (false, true) => (JxlColorType::Rgba, Encoding::Rgba8),
-        (true, false) => (JxlColorType::Grayscale, Encoding::Luma8),
         (true, true) => (JxlColorType::GrayscaleAlpha, Encoding::Lumaa8),
+        (true, false) => (JxlColorType::Grayscale, Encoding::Luma8),
+        (false, true) => (JxlColorType::Rgba, Encoding::Rgba8),
+        (false, false) => (JxlColorType::Rgb, Encoding::Rgb8),
     };
 
     let target_pixel_format = JxlPixelFormat {
@@ -183,7 +149,6 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
 
     let (width, height) = basic_info.size;
     if width == 0 || height == 0 {
-        return Err("Corrupted image (width, height)");
         return Err("Corrupted image (width, height)");
     }
 

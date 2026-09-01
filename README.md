@@ -5,14 +5,11 @@
 jxl-loader uses [jxl-rs](https://github.com/libjxl/jxl-rs) to decode JPEG XL images and [wasm-minimal-protocol](https://github.com/astrale-sharp/wasm-minimal-protocol) to expose the decoder to Typst.
 
 > [!NOTE]
-> jxl-loader is currently a proof of concept and may have limitations compared to the image formats natively supported by Typst.
+> jxl-loader is currently a proof of concept.
 
 ## Usage
 
-> [!NOTE]
-> jxl-loader is not yet available in Typst Universe. Install it locally (download and install or import the `typst` folder.)
-
-Import `jxl-loader` from the jxl-loader package:
+Import `jxl-loader` from the jxl-loader package in [Typst Universe](https://typst.app/universe/package/jxl-loader):
 
 ```typst
 #import "@preview/jxl-loader:0.3.0": image-jxl

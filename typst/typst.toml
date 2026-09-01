@@ -8,5 +8,5 @@ license = "MIT"
 description = "JPEG XL (JXL) decoder and loader."
 keywords = ["JPEG XL", "image", "jxl", "plugin", "typst", "wasm"]
 repository = "https://github.com/frabera/jxltypst"
-categories = ["visualization"]
+categories = ["visualization", "integration", "utility"]
 exclude = ["/docs"]

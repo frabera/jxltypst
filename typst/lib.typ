@@ -1,13 +1,11 @@
 #let _plugin = plugin("jxl_loader_opt.wasm")
 
-#let encodings = ("rgb8", "rgba8", "luma8", "lumaa8")
-
-
-// CREDIT: grayness https://typst.app/universe/package/grayness/
 /// Internal function to accept bytes and paths on Typst 0.15 or later
+///
+/// - imagedata (path, bytes): JXL image `path` or data as `bytes`
 /// -> bytes
 #let _check_args(
-  /// -> bytes | path
+  // CREDIT: grayness https://typst.app/universe/package/grayness/
   imagedata,
 ) = {
   if type(imagedata) == path {
@@ -20,65 +18,47 @@
   } else { panic("imagedata must be raw bytes or given as path") }
 }
 
+/// Internal constant map from crate Encoding enum to Typst encoding strings
+#let _ENCODINGS = ("rgb8", "rgba8", "luma8", "lumaa8")
+
 /// Insert a JXL image in the document
 ///
-///  _Example:_
+/// The image can be provided as raw `bytes` or as a `path`.
+/// Additional arguments are passed to Typst's `image` function.
+///
+/// _Example:_
 /// ```example
 /// #import "@preview/jxl-loader:0.3.0": image-jxl
-/// <<<#let arturo = read("Arturo_Nieto-Dorantes.webp", encoding: none)
-/// #image-grayscale(arturo)
+/// #image-jxl(path("path/to/img.jxl"), width: 50%)
+/// #image-jxl(read("path/to/img.jxl", encoding: none))
 /// ```
-/// -> content
-#let image-jxl(
-  imagedata,
-  ..args,
-) = {
-  let input = _check_args(imagedata)
-  let data = _plugin.jxl(input)
+///
+/// - imagedata (bytes, path): The JPEG XL image `path` or data.
+#let image-jxl(imagedata, ..args) = {
+  let data = _plugin.jxl(_check_args(imagedata))
 
-  // Rust format:
-  //
+  // Serialization format:
   // 0..4    width       u32 LE
   // 4..8    height      u32 LE
   // 8       encoding    u8
   // 9..13   icc_len     u32 LE
   // 13..    icc + pixels
-
-  let width = int.from-bytes(
-    data.slice(0, count: 4),
-    signed: false,
-  )
-  let height = int.from-bytes(
-    data.slice(4, count: 4),
-    signed: false,
-  )
-  let encoding = encodings.at(data.at(8))
-  let icc-len = int.from-bytes(
-    data.slice(9, count: 4),
-    signed: false,
-  )
-
-  // if 13 + icc-len > data.len() {
-  //   panic("Invalid JXL decoder output: ICC profile exceeds buffer")
-  // }
-
-  let icc = data.slice(13, count: icc-len)
-  let pixels = data.slice(13 + icc-len)
+  let width = int.from-bytes(data.slice(0, count: 4), signed: false)
+  let height = int.from-bytes(data.slice(4, count: 4), signed: false)
+  let encoding = _ENCODINGS.at(data.at(8))
+  let icc-len = int.from-bytes(data.slice(9, count: 4), signed: false)
+  let pixels_start = 13 + icc-len
+  let icc = data.slice(13, pixels_start)
+  let pixels = data.slice(pixels_start)
 
   image(
     pixels,
+    ..args,
     format: (
       width: width,
       height: height,
       encoding: encoding,
     ),
-    ..args,
-    ..(
-      if icc-len > 0 {
-        (icc: icc)
-      } else {
-        ()
-      }
-    ),
+    ..(if icc-len > 0 { (icc: icc) } else { () }),
   )
 }

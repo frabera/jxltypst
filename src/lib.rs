@@ -154,8 +154,10 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
 
     // Configure the decoder's actual output format before obtaining the
     // color profile. The ICC returned below describes the pixels produced
-    // by this decoder configuration.
-    decoder_with_image_info.set_pixel_format(target_pixel_format);
+    // by this decoder configuration. (can't panic if set before frame dec.)
+    decoder_with_image_info
+        .set_pixel_format(target_pixel_format)
+        .unwrap();
 
     let stride = width
         .checked_mul(color_type.samples_per_pixel())

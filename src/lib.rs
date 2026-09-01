@@ -141,7 +141,9 @@ pub fn decode_jxl_to_vec_u8(mut data: &[u8]) -> Result<DecodedJxl, &'static str>
     // Configure the decoder's actual output format before obtaining the
     // color profile. The ICC returned below describes the pixels produced
     // by this decoder configuration.
-    decoder_with_image_info.set_pixel_format(target_pixel_format);
+    decoder_with_image_info
+        .set_pixel_format(target_pixel_format)
+        .unwrap(); // errors if set after frame header is decoded
 
     let icc = decoder_with_image_info
         .output_color_profile()

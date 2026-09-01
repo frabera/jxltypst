@@ -9,10 +9,10 @@ jxl-loader uses [jxl-rs](https://github.com/libjxl/jxl-rs) to decode JPEG XL ima
 
 ## Usage
 
-Import `jxl-loader` from the jxl-loader package in [Typst Universe](https://typst.app/universe/package/jxl-loader):
+Import `image-jxl` from the jxl-loader package in [Typst Universe](https://typst.app/universe/package/jxl-loader):
 
 ```typst
-#import "@preview/jxl-loader:0.3.0": image-jxl
+#import "@preview/jxl-loader:0.4.0": image-jxl
 ```
 
 `image-jxl()` is a wrapper to the native [`image()`](https://typst.app/docs/reference/visualize/image/) function in Typst. It accepts the same arguments (i.e., `width`, `alt`, `fit`, etc.).
@@ -22,7 +22,7 @@ Import `jxl-loader` from the jxl-loader package in [Typst Universe](https://typs
 With Typst 0.15.0 or later, you can pass a `path` directly to `image-jxl`:
 
 ```typst
-#import "@preview/jxl-loader:0.3.0": image-jxl
+#import "@preview/jxl-loader:0.4.0": image-jxl
 
 #image-jxl(path("path/to/image.jxl"))
 ```
@@ -32,7 +32,7 @@ With Typst 0.15.0 or later, you can pass a `path` directly to `image-jxl`:
 You can also read the image as binary data and pass it to `image-jxl`:
 
 ```typst
-#import "@preview/jxl-loader:0.3.0": image-jxl
+#import "@preview/jxl-loader:0.4.0": image-jxl
 
 #let image-data = read("path/to/image.jxl", encoding: none)
 
@@ -70,7 +70,7 @@ cargo build --release --target wasm32-unknown-unknown
 The resulting WASM binary will be located at:
 
 ```text
-target/wasm32-unknown-unknown/release/jxl-loader.wasm
+target/wasm32-unknown-unknown/release/jxl_loader.wasm
 ```
 
 ### Optimizing the WASM binary
@@ -79,12 +79,12 @@ jxl-loader can be optimized with [`wasm-opt`](https://github.com/WebAssembly/bin
 
 ```sh
 wasm-opt \
-  ./target/wasm32-unknown-unknown/release/jxl-loader.wasm \
+  ./target/wasm32-unknown-unknown/release/jxl_loader.wasm \
   --enable-simd \
   --enable-bulk-memory \
   --all-features \
   -O4 \
-  -o typst/jxl-loader_opt.wasm
+  -o typst/jxl_loader_opt.wasm
 ```
 
 ### Using `just`

@@ -88,13 +88,9 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
 
     let basic_info = decoder.basic_info().unwrap().clone();
 
-    let is_grayscale = decoder
-        .current_pixel_format()
-        .unwrap()
-        .color_type
-        .is_grayscale();
+    let current_color_type = decoder.current_pixel_format().unwrap().color_type;
 
-    let mut color_type = if is_grayscale {
+    let mut color_type = if current_color_type.is_grayscale() {
         JxlColorType::Grayscale
     } else {
         JxlColorType::Rgb
@@ -109,7 +105,7 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
         }
     }
 
-    if has_alpha {
+    if has_alpha || current_color_type.has_alpha() {
         color_type = color_type.add_alpha().unwrap();
     }
 

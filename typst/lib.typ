@@ -18,8 +18,8 @@
   } else { panic("imagedata must be raw bytes or given as path") }
 }
 
-/// Internal constant map from crate Encoding enum to Typst encoding strings
-#let _ENCODINGS = ("rgb8", "rgba8", "luma8", "lumaa8")
+/// Internal constant map from samples_per_pixel value to Typst encoding strings
+#let _SAMPLES_PER_PIXEL_TO_ENCODING = (none, "luma8", "lumaa8", "rgb8", "rgba8")
 
 /// Insert a JXL image in the document
 ///
@@ -38,14 +38,14 @@
   let data = _plugin.jxl(_check_args(imagedata))
 
   // Serialization format:
-  // 0..4    width       u32 LE
-  // 4..8    height      u32 LE
-  // 8       encoding    u8
-  // 9..13   icc_len     u32 LE
+  // 0..4    width             u32 LE
+  // 4..8    height            u32 LE
+  // 8       samples_per_pixel u8  LE
+  // 9..13   icc_len           u32 LE
   // 13..    icc + pixels
   let width = int.from-bytes(data.slice(0, count: 4), signed: false)
   let height = int.from-bytes(data.slice(4, count: 4), signed: false)
-  let encoding = _ENCODINGS.at(data.at(8))
+  let encoding = _SAMPLES_PER_PIXEL_TO_ENCODING.at(data.at(8))
   let icc-len = int.from-bytes(data.slice(9, count: 4), signed: false)
   let pixels_start = 13 + icc-len
   let icc = data.slice(13, pixels_start)

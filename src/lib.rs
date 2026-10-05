@@ -9,13 +9,6 @@ use wasm_minimal_protocol::{initiate_protocol, wasm_func};
 #[cfg(target_arch = "wasm32")]
 initiate_protocol!();
 
-enum Encoding {
-    Rgb8 = 0,
-    Rgba8 = 1,
-    Luma8 = 2,
-    Lumaa8 = 3,
-}
-
 /// Allocates the output vector to be returned to Typst. It populates the header and
 /// return the output buffer containing the header metadata and icc with the offset to the
 /// empty data in which the decoder will write the pixel data.
@@ -23,7 +16,7 @@ enum Encoding {
 fn allocate_output(
     width: usize,
     height: usize,
-    encoding: Encoding,
+    samples_per_pixel: usize,
     icc: Option<&[u8]>,
     pixel_len: usize,
 ) -> Result<(Vec<u8>, usize), &'static str> {
@@ -39,7 +32,7 @@ fn allocate_output(
     // FORMAT:
     // width: u32 -> 4
     // height: u32 -> 4
-    // encoding: u8 -> 1
+    // samples_per_pixel: u8 -> 1
     // icc_len: u32 -> 4
     // icc: Vec<u8> -> icc_len
     // pixels: Vec<u8> -> buffer_len (width * height * samples_per_pixel)
@@ -61,7 +54,7 @@ fn allocate_output(
     out[offset..offset + 4].copy_from_slice(&(height as u32).to_le_bytes());
     offset += 4;
 
-    out[offset] = encoding as u8;
+    out[offset] = samples_per_pixel as u8;
     offset += 1;
 
     out[offset..offset + 4].copy_from_slice(&(icc_len as u32).to_le_bytes());
@@ -80,7 +73,7 @@ fn allocate_output(
 /// The returned pixel buffer is tightly packed, row-major, top-to-bottom.
 /// Each pixel contains 1, 2, 3, or 4 bytes depending on `encoding`.
 #[cfg_attr(target_arch = "wasm32", wasm_func)]
-pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
+pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
     let mut decoder = JxlDecoder::new(JxlDecoderOptions::default());
 
     while decoder
@@ -101,6 +94,12 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
         .color_type
         .is_grayscale();
 
+    let mut color_type = if is_grayscale {
+        JxlColorType::Grayscale
+    } else {
+        JxlColorType::Rgb
+    };
+
     let mut has_alpha = false;
     for channel in &basic_info.extra_channels {
         match channel.ec_type {
@@ -110,12 +109,9 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
         }
     }
 
-    let (color_type, encoding) = match (is_grayscale, has_alpha) {
-        (true, true) => (JxlColorType::GrayscaleAlpha, Encoding::Lumaa8),
-        (true, false) => (JxlColorType::Grayscale, Encoding::Luma8),
-        (false, true) => (JxlColorType::Rgba, Encoding::Rgba8),
-        (false, false) => (JxlColorType::Rgb, Encoding::Rgb8),
-    };
+    if has_alpha {
+        color_type = color_type.add_alpha().unwrap();
+    }
 
     let target_pixel_format = JxlPixelFormat {
         color_type,
@@ -133,8 +129,10 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
     // by this decoder configuration. (can't panic if set before frame dec.)
     decoder.set_pixel_format(target_pixel_format).unwrap();
 
+    let samples_per_pixel = color_type.samples_per_pixel();
+
     let stride = width
-        .checked_mul(color_type.samples_per_pixel())
+        .checked_mul(samples_per_pixel)
         .ok_or("Image width is too large")?;
 
     let pixel_len = stride
@@ -145,7 +143,7 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
     let icc = decoder.output_color_profile().unwrap().try_as_icc();
     let icc = icc.as_ref().map(|icc| icc.as_slice());
 
-    let (mut out, offset) = allocate_output(width, height, encoding, icc, pixel_len)?;
+    let (mut out, offset) = allocate_output(width, height, samples_per_pixel, icc, pixel_len)?;
     // The remainder of `out` is the pixel buffer.
     let pixels = &mut out[offset..];
 

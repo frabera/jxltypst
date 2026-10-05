@@ -1,7 +1,6 @@
-use jxl::api::states::{Initialized, WithFrameInfo, WithImageInfo};
 use jxl::api::{
-    ExtraChannel, JxlColorType, JxlDataFormat, JxlDecoder, JxlDecoderOptions, JxlOutputBuffer,
-    JxlPixelFormat, ProcessingResult,
+    Event, ExtraChannel, JxlColorType, JxlDataFormat, JxlDecoder, JxlDecoderOptions,
+    JxlOutputBuffer, JxlPixelFormat,
 };
 
 #[cfg(target_arch = "wasm32")]
@@ -10,83 +9,50 @@ use wasm_minimal_protocol::{initiate_protocol, wasm_func};
 #[cfg(target_arch = "wasm32")]
 initiate_protocol!();
 
-pub enum Encoding {
+enum Encoding {
     Rgb8 = 0,
     Rgba8 = 1,
     Luma8 = 2,
     Lumaa8 = 3,
 }
 
-fn decode_header(input: &mut &[u8]) -> Result<JxlDecoder<WithImageInfo>, &'static str> {
-    let mut decoder = JxlDecoder::<Initialized>::new(JxlDecoderOptions::default());
-    loop {
-        match decoder.process(input, None) {
-            Ok(ProcessingResult::Complete { result }) => return Ok(result),
-
-            Ok(ProcessingResult::NeedsMoreInput { fallback, .. }) => {
-                if input.is_empty() {
-                    return Err("Corrupted header");
-                }
-
-                decoder = fallback;
-            }
-
-            Err(_) => return Err("Corrupted header"),
-        }
-    }
-}
-
-fn decode_frame_header(
-    mut decoder: JxlDecoder<WithImageInfo>,
-    input: &mut &[u8],
-) -> Result<JxlDecoder<WithFrameInfo>, &'static str> {
-    loop {
-        match decoder.process(input, None) {
-            Ok(ProcessingResult::Complete { result }) => return Ok(result),
-
-            Ok(ProcessingResult::NeedsMoreInput { fallback, .. }) => {
-                if input.is_empty() {
-                    return Err("Corrupted frame data");
-                }
-
-                decoder = fallback;
-            }
-
-            Err(_) => return Err("Corrupted frame data"),
-        }
-    }
-}
-
-fn decode_pixels(
-    mut decoder: JxlDecoder<WithFrameInfo>,
-    input: &mut &[u8],
-    buffers: &mut [JxlOutputBuffer<'_>],
-) -> Result<(), &'static str> {
-    loop {
-        match decoder.process(input, buffers, None) {
-            Ok(ProcessingResult::Complete { .. }) => return Ok(()),
-
-            Ok(ProcessingResult::NeedsMoreInput { fallback, .. }) => {
-                if input.is_empty() {
-                    return Err("Corrupted pixel data");
-                }
-
-                decoder = fallback;
-            }
-
-            Err(_) => return Err("Corrupted pixel data"),
-        }
-    }
-}
-
+/// Allocates the output vector to be returned to Typst. It populates the header and
+/// return the output buffer containing the header metadata and icc with the offset to the
+/// empty data in which the decoder will write the pixel data.
 #[inline(always)]
-fn serialize_header(
-    out: &mut [u8],
+fn allocate_output(
     width: usize,
     height: usize,
     encoding: Encoding,
-    icc: Option<&Vec<u8>>,
-) -> usize {
+    icc: Option<&[u8]>,
+    pixel_len: usize,
+) -> Result<(Vec<u8>, usize), &'static str> {
+    let icc_len = icc.map_or(0, |icc| icc.len());
+
+    const HEADER_LEN: usize = 4 + 4 + 1 + 4;
+
+    let total_len = HEADER_LEN
+        .checked_add(icc_len)
+        .and_then(|x| x.checked_add(pixel_len))
+        .ok_or("Output is too large")?;
+
+    // FORMAT:
+    // width: u32 -> 4
+    // height: u32 -> 4
+    // encoding: u8 -> 1
+    // icc_len: u32 -> 4
+    // icc: Vec<u8> -> icc_len
+    // pixels: Vec<u8> -> buffer_len (width * height * samples_per_pixel)
+    let mut out = Vec::with_capacity(total_len);
+
+    // SAFETY:
+    // We immediately initialize every byte of `out` with `serialize_header`
+    // and  `JxlOutputBuffer` for the pixel region before `out` is returned.
+    #[allow(clippy::uninit_vec)]
+    unsafe {
+        out.set_len(total_len);
+    }
+
     let mut offset = 0;
 
     out[offset..offset + 4].copy_from_slice(&(width as u32).to_le_bytes());
@@ -98,7 +64,6 @@ fn serialize_header(
     out[offset] = encoding as u8;
     offset += 1;
 
-    let icc_len = icc.map_or(0, |icc| icc.len());
     out[offset..offset + 4].copy_from_slice(&(icc_len as u32).to_le_bytes());
     offset += 4;
 
@@ -107,7 +72,7 @@ fn serialize_header(
         offset += icc_len;
     }
 
-    offset
+    Ok((out, offset))
 }
 
 /// Decode a static JXL image to tightly packed RGB[A]8 or LUMA[A]8 pixels.
@@ -116,11 +81,23 @@ fn serialize_header(
 /// Each pixel contains 1, 2, 3, or 4 bytes depending on `encoding`.
 #[cfg_attr(target_arch = "wasm32", wasm_func)]
 pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
-    let mut decoder_with_image_info = decode_header(&mut data)?;
-    let basic_info = decoder_with_image_info.basic_info();
+    let mut decoder = JxlDecoder::new(JxlDecoderOptions::default());
 
-    let is_grayscale = decoder_with_image_info
+    while decoder
+        .process(&mut data, None, None)
+        .map_err(|_| "Corrupted header")?
+        != Event::BasicInfo
+    {
+        if data.is_empty() {
+            return Err("Source file truncated");
+        }
+    }
+
+    let basic_info = decoder.basic_info().unwrap().clone();
+
+    let is_grayscale = decoder
         .current_pixel_format()
+        .unwrap()
         .color_type
         .is_grayscale();
 
@@ -154,48 +131,42 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
     // Configure the decoder's actual output format before obtaining the
     // color profile. The ICC returned below describes the pixels produced
     // by this decoder configuration. (can't panic if set before frame dec.)
-    decoder_with_image_info
-        .set_pixel_format(target_pixel_format)
-        .unwrap();
+    decoder.set_pixel_format(target_pixel_format).unwrap();
 
     let stride = width
         .checked_mul(color_type.samples_per_pixel())
         .ok_or("Image width is too large")?;
 
-    let buffer_len = stride
+    let pixel_len = stride
         .checked_mul(height)
         .ok_or("Image dimensions are too large")?;
 
     // The ICC profile corresponding to the color space of the decoded image, _if available_.
-    let icc = decoder_with_image_info.output_color_profile().try_as_icc();
-    let icc_len = icc.as_ref().map_or(0, |icc| icc.len());
+    let icc = decoder.output_color_profile().unwrap().try_as_icc();
+    let icc = icc.as_ref().map(|icc| icc.as_slice());
 
-    const HEADER_LEN: usize = 4 + 4 + 1 + 4;
-    let total_len = HEADER_LEN + icc_len + buffer_len;
-
-    // FORMAT:
-    // width: u32 -> 4
-    // height: u32 -> 4
-    // encoding: u8 -> 1
-    // icc_len: u32 -> 4
-    // icc: Vec<u8> -> icc_len
-    // pixels: Vec<u8> -> buffer_len (width * height * samples_per_pixel)
-    let mut out = Vec::with_capacity(total_len);
-
-    // SAFETY:
-    // We immediately initialize every byte of `out` with `serialize_header`
-    // and  `JxlOutputBuffer` for the pixel region before `out` is returned.
-    #[allow(clippy::uninit_vec)]
-    unsafe {
-        out.set_len(total_len);
-    }
-    let offset = serialize_header(&mut out, width, height, encoding, icc.as_deref());
+    let (mut out, offset) = allocate_output(width, height, encoding, icc, pixel_len)?;
     // The remainder of `out` is the pixel buffer.
     let pixels = &mut out[offset..];
 
-    let decoder_with_frame_info = decode_frame_header(decoder_with_image_info, &mut data)?;
     let mut buffers = [JxlOutputBuffer::new(pixels, height, stride)];
-    decode_pixels(decoder_with_frame_info, &mut data, &mut buffers)?;
+
+    loop {
+        match decoder
+            .process(&mut data, Some(&mut buffers), None)
+            .map_err(|_| "Corrupted pixel data")?
+        {
+            Event::BasicInfo => unreachable!(),
+            Event::FrameHeader => {} // Only first frame is decoded for animated JXL, duration is not needed
+            Event::FrameComplete { .. } => break, // Only first frame is decoded for animated JXL
+            Event::Complete => break,
+            Event::NeedMoreInput { .. } => {
+                if data.is_empty() {
+                    return Err("Source file truncated");
+                }
+            }
+        }
+    }
 
     Ok(out)
 }

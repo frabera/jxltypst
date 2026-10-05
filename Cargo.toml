@@ -10,8 +10,11 @@ repository = "https://github.com/frabera/jxltypst"
 license = "MIT"
 categories = ["JPEG XL", "image", "jxl", "plugin", "typst", "wasm"]
 
+[lib]
+crate-type = ["cdylib"]
+
 [dependencies]
-jxl = { git = "https://github.com/libjxl/jxl-rs", rev = "595a05fc66d4cdcd988c7bbfe14459d820aa3d45", version = "0.7.4", default-features = false, features = ["simd128"] }
+jxl = { git = "https://github.com/libjxl/jxl-rs", rev = "91480a02ade65fc9b2b8915e3034877d095dede6", version = "0.7.4", default-features = false, features = ["simd128"] }
 wasm-minimal-protocol = "0.2.1"
 
 [profile.release]

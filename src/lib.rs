@@ -80,7 +80,7 @@ fn allocate_output(
 /// The returned pixel buffer is tightly packed, row-major, top-to-bottom.
 /// Each pixel contains 1, 2, 3, or 4 bytes depending on `encoding`.
 #[cfg_attr(target_arch = "wasm32", wasm_func)]
-pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
+pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
     let mut decoder = JxlDecoder::new(JxlDecoderOptions::default());
 
     while decoder

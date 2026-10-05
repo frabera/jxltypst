@@ -1,7 +1,6 @@
 [package]
 name = "jxl-loader"
 version = "0.4.0"
-# tombi: lint.rules.unused-noqa.disabled = true
 # tombi: lint.rules.deprecated.disabled = true
 authors = ["frabera"]
 edition = "2024"
@@ -11,11 +10,8 @@ repository = "https://github.com/frabera/jxltypst"
 license = "MIT"
 categories = ["JPEG XL", "image", "jxl", "plugin", "typst", "wasm"]
 
-[lib]
-crate-type = ["cdylib"]
-
 [dependencies]
-jxl = { git = "https://github.com/libjxl/jxl-rs", rev = "48ca85f1e35fb18764518ed6c91eccdbb03ec417", default-features = false, features = ["simd128"] }  # 0.6.0
+jxl = { git = "https://github.com/libjxl/jxl-rs", rev = "595a05fc66d4cdcd988c7bbfe14459d820aa3d45", version = "0.7.4", default-features = false, features = ["simd128"] }
 wasm-minimal-protocol = "0.2.1"
 
 [profile.release]

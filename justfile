@@ -10,13 +10,12 @@ copy-wasm:
 make: build copy-wasm
 
 optimize:
-    wasm-opt ./typst/jxl-loader.wasm --enable-simd --enable-bulk-memory --all-features -o ./typst/jxl_loader_opt.wasm -O4
+    wasm-opt ./target/wasm32-unknown-unknown/release/jxl_loader.wasm --enable-simd --enable-bulk-memory --all-features -O4 -o typst/jxl_loader_opt.wasm
 
 bench:
     hyperfine "typst c .\hello.typ --ignore-system-fonts"
 
-makeopt: build
-    wasm-opt ./target/wasm32-unknown-unknown/release/jxl_loader.wasm --enable-simd --enable-bulk-memory --all-features -O4 -o typst/jxl_loader_opt.wasm
+makeopt: build optimize
 
 test:
     typst c .\test.typ --format html --features html

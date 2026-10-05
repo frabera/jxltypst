@@ -3,11 +3,11 @@
 #set document(date: datetime(day: 1, month: 1, year: 1970))
 #set page(width: auto, height: auto, margin: auto, fill: rgb("#f5f5dc"))
 
-#html.elem("style")[
+#html.style("
   body {
-  background-color: beige;
+    background-color: beige;
   }
-]
+")
 
 #let file_list = (
   "test/conformance_test_images/alpha_nonpremultiplied.jxl",
@@ -109,8 +109,9 @@
 )
 
 #for imagepath in file_list {
-  [#imagepath]
+  imagepath
   linebreak()
   image-jxl(path(imagepath))
-  html.elem("img", attrs: (src: imagepath))
+  html.img(src: imagepath)
+  linebreak()
 }

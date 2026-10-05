@@ -1,9 +1,8 @@
 use jxl::api::states::{Initialized, WithFrameInfo, WithImageInfo};
 use jxl::api::{
-    JxlColorType, JxlDataFormat, JxlDecoder, JxlDecoderOptions, JxlOutputBuffer, JxlPixelFormat,
-    ProcessingResult,
+    ExtraChannel, JxlColorType, JxlDataFormat, JxlDecoder, JxlDecoderOptions, JxlOutputBuffer,
+    JxlPixelFormat, ProcessingResult,
 };
-use jxl::headers::extra_channels::ExtraChannel;
 
 #[cfg(target_arch = "wasm32")]
 use wasm_minimal_protocol::{initiate_protocol, wasm_func};

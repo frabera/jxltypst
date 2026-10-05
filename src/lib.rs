@@ -22,7 +22,7 @@ fn serialize_header(
     width: usize,
     height: usize,
     encoding: Encoding,
-    icc: Option<&Vec<u8>>,
+    icc: &[u8],
 ) -> usize {
     let mut offset = 0;
 
@@ -35,14 +35,12 @@ fn serialize_header(
     out[offset] = encoding as u8;
     offset += 1;
 
-    let icc_len = icc.map_or(0, |icc| icc.len());
+    let icc_len = icc.len();
     out[offset..offset + 4].copy_from_slice(&(icc_len as u32).to_le_bytes());
     offset += 4;
 
-    if let Some(icc) = icc {
-        out[offset..offset + icc_len].copy_from_slice(icc);
-        offset += icc_len;
-    }
+    out[offset..offset + icc_len].copy_from_slice(icc);
+    offset += icc_len;
 
     offset
 }
@@ -116,7 +114,12 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
     // The ICC profile corresponding to the color space of the decoded image, _if available_.
     let icc = decoder.output_color_profile().unwrap().try_as_icc();
 
-    let icc_len = icc.as_ref().map_or(0, |icc| icc.len());
+    let icc: &[u8] = match &icc {
+        Some(icc) => icc.as_slice(),
+        None => &[],
+    };
+
+    let icc_len = icc.len();
 
     const HEADER_LEN: usize = 4 + 4 + 1 + 4;
 
@@ -141,7 +144,7 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &'static str> {
     unsafe {
         out.set_len(total_len);
     }
-    let offset = serialize_header(&mut out, width, height, encoding, icc.as_deref());
+    let offset = serialize_header(&mut out, width, height, encoding, icc);
     // The remainder of `out` is the pixel buffer.
     let pixels = &mut out[offset..];
 

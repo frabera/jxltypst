@@ -1,6 +1,6 @@
 use jxl::api::{
-    Event, ExtraChannel, JxlColorType, JxlDataFormat, JxlDecoder, JxlDecoderOptions,
-    JxlOutputBuffer, JxlPixelFormat,
+    Event, ExtraChannel, JxlColorEncoding, JxlColorProfile, JxlColorType, JxlDataFormat,
+    JxlDecoder, JxlDecoderOptions, JxlOutputBuffer, JxlPixelFormat,
 };
 
 #[cfg(target_arch = "wasm32")]
@@ -8,6 +8,13 @@ use wasm_minimal_protocol::{initiate_protocol, wasm_func};
 
 #[cfg(target_arch = "wasm32")]
 initiate_protocol!();
+
+// const SRGB: JxlColorProfile = JxlColorProfile::Simple(JxlColorEncoding::RgbColorSpace {
+//     white_point: JxlWhitePoint::D65,
+//     primaries: JxlPrimaries::SRGB,
+//     transfer_function: JxlTransferFunction::SRGB,
+//     rendering_intent: RenderingIntent::Relative,
+// });
 
 /// Allocates the output vector to be returned to Typst. It populates the header and
 /// return the output buffer containing the header metadata and icc with the offset to the
@@ -136,8 +143,26 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
         .ok_or("Image dimensions are too large")?;
 
     // The ICC profile corresponding to the color space of the decoded image, _if available_.
-    let icc = decoder.output_color_profile().unwrap().try_as_icc();
-    let icc = icc.as_ref().map(|icc| icc.as_slice());
+
+    // let outputcol = decoder.output_color_profile().unwrap();
+    // let mut icc = Some(&[][..]);
+
+    // if !outputcol.same_color_encoding(&SRGB) {
+    //     let icc_temp = decoder.output_color_profile().unwrap().try_as_icc();
+    //     icc = icc_temp.as_ref().map(|icc| icc.as_slice());
+    // }
+
+    let output_color_profile = decoder.output_color_profile().unwrap();
+
+    let srgb = JxlColorProfile::Simple(JxlColorEncoding::srgb(current_color_type.is_grayscale()));
+
+    let icc_temp = if !output_color_profile.same_color_encoding(&srgb) {
+        output_color_profile.try_as_icc()
+    } else {
+        None
+    };
+
+    let icc = icc_temp.as_ref().map(|icc| icc.as_slice());
 
     let (mut out, offset) = allocate_output(width, height, samples_per_pixel, icc, pixel_len)?;
     // The remainder of `out` is the pixel buffer.

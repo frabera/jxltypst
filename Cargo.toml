@@ -14,7 +14,7 @@ categories = ["JPEG XL", "image", "jxl", "plugin", "typst", "wasm"]
 crate-type = ["cdylib"]
 
 [dependencies]
-jxl = { git = "https://github.com/libjxl/jxl-rs", rev = "91480a02ade65fc9b2b8915e3034877d095dede6", version = "0.7.4", default-features = false, features = ["simd128"] }
+jxl = { git = "https://github.com/libjxl/jxl-rs", rev = "13b0b655bef624328c6c2d84b5b2a360341d4a5e", version = "0.7.4", default-features = false, features = ["simd128"] }
 wasm-minimal-protocol = "0.2.1"
 
 [profile.release]

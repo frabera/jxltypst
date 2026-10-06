@@ -4,8 +4,8 @@
 ///
 /// - imagedata (path, bytes): JXL image `path` or data as `bytes`
 /// -> bytes
+// CREDIT: grayness https://typst.app/universe/package/grayness/
 #let _check_args(
-  // CREDIT: grayness https://typst.app/universe/package/grayness/
   imagedata,
 ) = {
   if type(imagedata) == path {
@@ -33,23 +33,22 @@
 /// #image-jxl(read("path/to/img.jxl", encoding: none))
 /// ```
 ///
-/// - imagedata (bytes, path): The JPEG XL image `path` or data.
+/// - imagedata (bytes, path): The JPEG XL image `path` or data as `bytes`.
 #let image-jxl(imagedata, ..args) = {
   let data = _plugin.jxl(_check_args(imagedata))
 
   // Serialization format:
   // 0..4    width             u32 LE
   // 4..8    height            u32 LE
-  // 8       samples_per_pixel u8  LE
+  // 8       samples_per_pixel u8
   // 9..13   icc_len           u32 LE
-  // 13..    icc + pixels
+  // 13..    icc + pixels      [u8]
   let width = int.from-bytes(data.slice(0, count: 4), signed: false)
   let height = int.from-bytes(data.slice(4, count: 4), signed: false)
   let encoding = _SAMPLES_PER_PIXEL_TO_ENCODING.at(data.at(8))
   let icc-len = int.from-bytes(data.slice(9, count: 4), signed: false)
-  let pixels_start = 13 + icc-len
-  let icc = data.slice(13, pixels_start)
-  let pixels = data.slice(pixels_start)
+  let icc = data.slice(13, count: icc-len)
+  let pixels = data.slice(13 + icc-len)
 
   image(
     pixels,

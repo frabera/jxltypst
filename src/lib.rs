@@ -1,6 +1,6 @@
 use jxl::api::{
-    Event, ExtraChannel, JxlColorType, JxlDataFormat, JxlDecoder, JxlDecoderOptions,
-    JxlOutputBuffer, JxlPixelFormat,
+    Event, ExtraChannel, JxlColorProfile, JxlColorType, JxlDataFormat, JxlDecoder,
+    JxlDecoderOptions, JxlOutputBuffer, JxlPixelFormat,
 };
 
 #[cfg(target_arch = "wasm32")]
@@ -13,16 +13,18 @@ initiate_protocol!();
 /// return the output buffer containing the header metadata and icc with the offset to the
 /// empty data in which the decoder will write the pixel data.
 #[inline(always)]
-fn allocate_output(
+fn allocate_output_with_serialized_header(
     width: usize,
     height: usize,
+    output_color_profile: &JxlColorProfile,
     samples_per_pixel: usize,
-    icc: Option<&[u8]>,
     pixel_len: usize,
 ) -> Result<(Vec<u8>, usize), &'static str> {
-    let icc_len = icc.map_or(0, |icc| icc.len());
-
     const HEADER_LEN: usize = 4 + 4 + 1 + 4;
+
+    // The ICC profile corresponding to the color space of the decoded image, _if available_.
+    let icc = output_color_profile.try_as_icc();
+    let icc_len = icc.as_ref().map_or(0, |icc| icc.len());
 
     let total_len = HEADER_LEN
         .checked_add(icc_len)
@@ -61,7 +63,7 @@ fn allocate_output(
     offset += 4;
 
     if let Some(icc) = icc {
-        out[offset..offset + icc_len].copy_from_slice(icc);
+        out[offset..offset + icc_len].copy_from_slice(&icc);
         offset += icc_len;
     }
 
@@ -86,7 +88,7 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
         }
     }
 
-    let basic_info = decoder.basic_info().unwrap().clone();
+    let basic_info = decoder.basic_info().unwrap();
 
     let current_color_type = decoder.current_pixel_format().unwrap().color_type;
 
@@ -135,11 +137,15 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
         .checked_mul(height)
         .ok_or("Image dimensions are too large")?;
 
-    // The ICC profile corresponding to the color space of the decoded image, _if available_.
-    let icc = decoder.output_color_profile().unwrap().try_as_icc();
-    let icc = icc.as_ref().map(|icc| icc.as_slice());
+    let out_color_profile = decoder.output_color_profile().unwrap();
 
-    let (mut out, offset) = allocate_output(width, height, samples_per_pixel, icc, pixel_len)?;
+    let (mut out, offset) = allocate_output_with_serialized_header(
+        width,
+        height,
+        out_color_profile,
+        samples_per_pixel,
+        pixel_len,
+    )?;
     // The remainder of `out` is the pixel buffer.
     let pixels = &mut out[offset..];
 

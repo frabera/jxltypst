@@ -10,6 +10,7 @@
 ")
 
 #let file_list = (
+  // "test/conformance_test_images/alpha_nonpremultiplied_compliant.jxl",
   "test/conformance_test_images/alpha_nonpremultiplied.jxl",
   "test/conformance_test_images/alpha_premultiplied.jxl",
   "test/conformance_test_images/alpha_triangles.jxl",

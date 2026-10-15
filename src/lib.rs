@@ -3,6 +3,12 @@ use jxl::api::{
     JxlDecoderOptions, JxlOutputBuffer, JxlPixelFormat,
 };
 
+const MAX_PIXELS: usize = 150_000_000;
+const MAX_ICC_SIZE: usize = 32 * 1024 * 1024;
+const MAX_EXTRA_CHANNELS: usize = 16;
+const MAX_SAMPLES_LIMIT: usize = MAX_PIXELS * MAX_EXTRA_CHANNELS;
+const MAX_SERIALIZED_SIZE: usize = 512 * 1024 * 1024;
+
 #[cfg(target_arch = "wasm32")]
 use wasm_minimal_protocol::{initiate_protocol, wasm_func};
 
@@ -25,11 +31,18 @@ fn allocate_output_with_serialized_header(
     // The ICC profile corresponding to the color space of the decoded image, _if available_.
     let icc = output_color_profile.try_as_icc();
     let icc_len = icc.as_ref().map_or(0, |icc| icc.len());
+    if icc_len > MAX_ICC_SIZE {
+        return Err("ICC profile exceeds size limit");
+    }
 
     let total_len = HEADER_LEN
         .checked_add(icc_len)
         .and_then(|x| x.checked_add(pixel_len))
         .ok_or("Output is too large")?;
+
+    if total_len > MAX_SERIALIZED_SIZE {
+        return Err("Output exceeds memory limit");
+    }
 
     // FORMAT:
     // width: u32 -> 4
@@ -38,7 +51,10 @@ fn allocate_output_with_serialized_header(
     // icc_len: u32 -> 4
     // icc: Vec<u8> -> icc_len
     // pixels: Vec<u8> -> buffer_len (width * height * samples_per_pixel)
-    let mut out = Vec::with_capacity(total_len);
+    // let mut out = Vec::with_capacity(total_len);
+    let mut out = Vec::new();
+    out.try_reserve_exact(total_len)
+        .map_err(|_| "Failed to allocate output buffer.")?;
 
     // SAFETY:
     // We immediately initialize every byte of `out` with `serialize_header`
@@ -50,16 +66,16 @@ fn allocate_output_with_serialized_header(
 
     let mut offset = 0;
 
-    out[offset..offset + 4].copy_from_slice(&(width as u32).to_le_bytes());
+    out[offset..offset + 4].copy_from_slice(&width.to_le_bytes());
     offset += 4;
 
-    out[offset..offset + 4].copy_from_slice(&(height as u32).to_le_bytes());
+    out[offset..offset + 4].copy_from_slice(&height.to_le_bytes());
     offset += 4;
 
     out[offset] = samples_per_pixel as u8;
     offset += 1;
 
-    out[offset..offset + 4].copy_from_slice(&(icc_len as u32).to_le_bytes());
+    out[offset..offset + 4].copy_from_slice(&icc_len.to_le_bytes());
     offset += 4;
 
     if let Some(icc) = icc {
@@ -76,7 +92,9 @@ fn allocate_output_with_serialized_header(
 /// Each pixel contains 1, 2, 3, or 4 bytes depending on `encoding`.
 #[cfg_attr(target_arch = "wasm32", wasm_func)]
 pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
-    let mut decoder = JxlDecoder::new(JxlDecoderOptions::default());
+    let mut options = JxlDecoderOptions::default();
+    options.sample_limit = Some(MAX_SAMPLES_LIMIT);
+    let mut decoder = JxlDecoder::new(options);
 
     while decoder
         .process(&mut data, None, None)
@@ -89,6 +107,21 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
     }
 
     let basic_info = decoder.basic_info().unwrap();
+
+    let (width, height) = basic_info.size;
+
+    if width == 0 || height == 0 {
+        return Err("Corrupted image (width, height)");
+    }
+
+    let pixel_count = width
+        .checked_mul(height)
+        .filter(|&n| n <= MAX_PIXELS)
+        .ok_or("Image dimensions are too large")?;
+
+    if basic_info.extra_channels.len() > MAX_EXTRA_CHANNELS {
+        return Err("Image exceeds extra-channel limit");
+    }
 
     let current_color_type = decoder.current_pixel_format().unwrap().color_type;
 
@@ -117,11 +150,6 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
         extra_channel_format: vec![None; basic_info.extra_channels.len()],
     };
 
-    let (width, height) = basic_info.size;
-    if width == 0 || height == 0 {
-        return Err("Corrupted image (width, height)");
-    }
-
     // Configure the decoder's actual output format before obtaining the
     // color profile. The ICC returned below describes the pixels produced
     // by this decoder configuration. (can't panic if set before frame dec.)
@@ -133,8 +161,8 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
         .checked_mul(samples_per_pixel)
         .ok_or("Image width is too large")?;
 
-    let pixel_len = stride
-        .checked_mul(height)
+    let pixel_data_len = pixel_count
+        .checked_mul(samples_per_pixel)
         .ok_or("Image dimensions are too large")?;
 
     let out_color_profile = decoder.output_color_profile().unwrap();
@@ -144,7 +172,7 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
         height,
         out_color_profile,
         samples_per_pixel,
-        pixel_len,
+        pixel_data_len,
     )?;
     // The remainder of `out` is the pixel buffer.
     let pixels = &mut out[offset..];

@@ -1,5 +1,5 @@
 use jxl::api::{
-    Event, ExtraChannel, JxlColorProfile, JxlColorType, JxlDataFormat, JxlDecoder,
+    AlphaMode, Event, ExtraChannel, JxlColorProfile, JxlColorType, JxlDataFormat, JxlDecoder,
     JxlDecoderOptions, JxlOutputBuffer, JxlPixelFormat,
 };
 
@@ -76,7 +76,9 @@ fn allocate_output_with_serialized_header(
 /// Each pixel contains 1, 2, 3, or 4 bytes depending on `encoding`.
 #[cfg_attr(target_arch = "wasm32", wasm_func)]
 pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
-    let mut decoder = JxlDecoder::new(JxlDecoderOptions::default());
+    let mut options = JxlDecoderOptions::default();
+    options.alpha_mode = AlphaMode::Unpremultiplied;
+    let mut decoder = JxlDecoder::new(options);
 
     while decoder
         .process(&mut data, None, None)

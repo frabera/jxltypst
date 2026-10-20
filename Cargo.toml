@@ -1,6 +1,6 @@
 [package]
 name = "jxl-loader"
-version = "0.4.0"
+version = "0.5.0"
 # tombi: lint.rules.deprecated.disabled = true
 authors = ["frabera"]
 edition = "2024"

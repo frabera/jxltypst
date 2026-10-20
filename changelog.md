@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.5.0]
+
+### Added
+
+- Added a spec-conformant test image for alpha non-premultiplied handling.
+- Added support for optional ICC profile data in the buffer allocation helper.
+
+### Changed
+
+- Updated jxl-rs to 0.8.0.
+- Migrated to the event API for image processing and buffer allocation.
+- Always use non-premultiplied alpha, converting image data when necessary.
+- Use samples_per_pixel for serialization instead of storing encoding information.
+- Updated upstream dependencies and synchronized with upstream changes.
+- Updated dependencies and the minimum supported Rust version.
+- Refactored and optimized internal implementation details.
+
+### Fixed
+
+- More robust alpha-channel detection and handling.
+
+### Improved
+
+- Enforced limits for image processing (including Level 5 from jxl-rs).
+- Improved documentation and error reporting.
+- Cleaned up Typst deserialization and documentation.
+
 ## [0.4.0]
 
 ### Modified

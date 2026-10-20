@@ -5,7 +5,7 @@
 jxl-loader uses [jxl-rs](https://github.com/libjxl/jxl-rs) to decode JPEG XL images and [wasm-minimal-protocol](https://github.com/astrale-sharp/wasm-minimal-protocol) to expose the decoder to Typst.
 
 > [!NOTE]
-> jxl-loader is currently a proof of concept.
+> The image is converted to 8-bit color depth image (grayscale/RGB with/without transparency, depending on source), regardless of source color depth (u8, u16, f16, f32). This limit comes from Typst `image` function. This may change in the future.
 
 ## Usage
 

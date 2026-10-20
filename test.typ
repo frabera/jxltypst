@@ -75,7 +75,7 @@
   "test/issue728_minimal.jxl",
   "test/issue772_blendbug.jxl",
   "test/issue865_large_toc.jxl",
-  "test/large_header.jxl",
+  // "test/large_header.jxl", // Can't be decoded with level 5 limits
   "test/lossy_with_icc.jxl",
   "test/multiple_layers_noise_spline.jxl",
   "test/multiple_lf_420.jxl",

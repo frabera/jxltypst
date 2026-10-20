@@ -10,7 +10,7 @@
 ) = {
   if type(imagedata) == path {
     if sys.version < version(0, 15, 0) {
-      panic("Using path as argument requires Typst 0.15 or later, use bytes instead on earlier versions.")
+      panic("Using path as argument requires Typst 0.15 or later, pass the image as bytes instead on earlier versions.")
     }
     read(imagedata, encoding: none)
   } else if type(imagedata) == bytes {

@@ -10,7 +10,7 @@ use wasm_minimal_protocol::{initiate_protocol, wasm_func};
 initiate_protocol!();
 
 /// Allocates the output vector to be returned to Typst. It populates the header and
-/// return the output buffer containing the header metadata and icc with the offset to the
+/// return the output buffer containing the header metadata and ICC with the offset to the
 /// empty data in which the decoder will write the pixel data.
 #[inline(always)]
 fn allocate_output_with_serialized_header(
@@ -42,7 +42,7 @@ fn allocate_output_with_serialized_header(
 
     // SAFETY:
     // We immediately initialize every byte of `out` with `serialize_header`
-    // and  `JxlOutputBuffer` for the pixel region before `out` is returned.
+    // and `JxlOutputBuffer` for the pixel region before `out` is returned.
     #[allow(clippy::uninit_vec)]
     unsafe {
         out.set_len(total_len);
@@ -78,6 +78,7 @@ fn allocate_output_with_serialized_header(
 pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
     let mut options = JxlDecoderOptions::default();
     options.alpha_mode = AlphaMode::Unpremultiplied;
+    options.max_profile_level = jxl::api::ProfileLevel::Main5;
     let mut decoder = JxlDecoder::new(options);
 
     while decoder
@@ -126,7 +127,7 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
 
     // Configure the decoder's actual output format before obtaining the
     // color profile. The ICC returned below describes the pixels produced
-    // by this decoder configuration. (can't panic if set before frame dec.)
+    // by this decoder configuration. (can't panic if set before frame decoding.)
     decoder.set_pixel_format(target_pixel_format).unwrap();
 
     let samples_per_pixel = color_type.samples_per_pixel();

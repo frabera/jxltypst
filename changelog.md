@@ -18,7 +18,6 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Migrated to the event API for image processing and buffer allocation.
 - Always use non-premultiplied alpha, converting image data when necessary.
 - Use samples_per_pixel for serialization instead of storing encoding information.
-- Updated upstream dependencies and synchronized with upstream changes.
 - Updated dependencies and the minimum supported Rust version.
 - Refactored and optimized internal implementation details.
 

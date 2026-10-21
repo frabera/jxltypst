@@ -9,6 +9,9 @@ copy-wasm:
 
 make: build copy-wasm
 
+optimize-minfeatures:
+    wasm-opt ./target/wasm32-unknown-unknown/release/jxl_loader.wasm --enable-simd --enable-bulk-memory --enable-nontrapping-float-to-int -O4 -o typst/jxl_loader_opt.wasm
+
 optimize:
     wasm-opt ./target/wasm32-unknown-unknown/release/jxl_loader.wasm --enable-simd --enable-bulk-memory --all-features -O4 -o typst/jxl_loader_opt.wasm
 

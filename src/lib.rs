@@ -99,17 +99,12 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
         JxlColorType::Rgb
     };
 
-    let mut has_alpha = false;
     for channel in &basic_info.extra_channels {
         match channel.ec_type {
-            ExtraChannel::Alpha => has_alpha = true,
+            ExtraChannel::Alpha => color_type = color_type.add_alpha().unwrap(),
             ExtraChannel::Black => return Err("CMYK is not currently supported."),
             _ => {}
         }
-    }
-
-    if has_alpha || current_color_type.has_alpha() {
-        color_type = color_type.add_alpha().unwrap();
     }
 
     let target_pixel_format = JxlPixelFormat {
@@ -160,13 +155,11 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
         {
             Event::BasicInfo => unreachable!(),
             Event::FrameHeader => {} // Only first frame is decoded for animated JXL, duration is not needed
-            Event::FrameComplete { .. } => break, // Only first frame is decoded for animated JXL
-            Event::Complete => break,
-            Event::NeedMoreInput { .. } => {
-                if data.is_empty() {
-                    return Err("Source file truncated");
-                }
+            Event::Complete | Event::FrameComplete { .. } => break, // Only first frame is decoded for animated JXL
+            Event::NeedMoreInput { .. } if data.is_empty() => {
+                return Err("Source file truncated");
             }
+            Event::NeedMoreInput { .. } => {}
         }
     }
 

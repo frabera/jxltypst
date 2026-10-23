@@ -28,7 +28,7 @@
 ///
 /// _Example:_
 /// ```example
-/// #import "@preview/jxl-loader:0.5.0": image-jxl
+/// #import "@preview/jxl-loader:0.5.1": image-jxl
 /// #image-jxl(path("path/to/img.jxl"), width: 50%) // as `path()`
 /// #image-jxl(read("path/to/img.jxl", encoding: none)) // or as `bytes()`
 /// ```

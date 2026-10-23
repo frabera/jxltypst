@@ -19,7 +19,7 @@ fn allocate_output_with_serialized_header(
     samples_per_pixel: usize,
     icc: Option<&[u8]>,
     pixel_len: usize,
-) -> Result<(Vec<u8>, usize), &'static str> {
+) -> Result<Vec<u8>, &'static str> {
     const HEADER_LEN: usize = 4 + 4 + 1 + 4;
 
     let icc_len = icc.map_or(0, |icc| icc.len());
@@ -37,35 +37,16 @@ fn allocate_output_with_serialized_header(
     // icc: Vec<u8> -> icc_len
     // pixels: Vec<u8> -> buffer_len (width * height * samples_per_pixel)
     let mut out = Vec::with_capacity(total_len);
-
-    // SAFETY:
-    // We immediately initialize every byte of `out` with `serialize_header`
-    // and `JxlOutputBuffer` for the pixel region before `out` is returned.
-    #[allow(clippy::uninit_vec)]
-    unsafe {
-        out.set_len(total_len);
-    }
-
-    let mut offset = 0;
-
-    out[offset..offset + 4].copy_from_slice(&(width as u32).to_le_bytes());
-    offset += 4;
-
-    out[offset..offset + 4].copy_from_slice(&(height as u32).to_le_bytes());
-    offset += 4;
-
-    out[offset] = samples_per_pixel as u8;
-    offset += 1;
-
-    out[offset..offset + 4].copy_from_slice(&(icc_len as u32).to_le_bytes());
-    offset += 4;
+    out.extend_from_slice(&(width as u32).to_le_bytes());
+    out.extend_from_slice(&(height as u32).to_le_bytes());
+    out.push(samples_per_pixel as u8);
+    out.extend_from_slice(&(icc_len as u32).to_le_bytes());
 
     if let Some(icc) = icc {
-        out[offset..offset + icc_len].copy_from_slice(icc);
-        offset += icc_len;
+        out.extend_from_slice(icc);
     }
 
-    Ok((out, offset))
+    Ok(out)
 }
 
 /// Decode a static JXL image to tightly packed RGB[A]8 or LUMA[A]8 pixels.
@@ -136,15 +117,20 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
     // The ICC profile corresponding to the color space of the decoded image, _if available_.
     let icc = decoder.output_color_profile().unwrap().try_as_icc();
 
-    let (mut out, offset) = allocate_output_with_serialized_header(
+    let mut out = allocate_output_with_serialized_header(
         width,
         height,
         samples_per_pixel,
         icc.as_deref().map(Vec::as_slice),
         pixel_len,
     )?;
-    // The remainder of `out` is the pixel buffer.
-    let pixels = &mut out[offset..];
+
+    // `out.len()` currently covers only the header + ICC.
+    let offset = out.len();
+
+    // SAFETY: The allocation has capacity for `pixel_len` more bytes.
+    // The decoder must initialize every pixel byte before `set_len`.
+    let pixels = unsafe { std::slice::from_raw_parts_mut(out.as_mut_ptr().add(offset), pixel_len) };
 
     let mut buffers = [JxlOutputBuffer::new(pixels, height, stride)];
 

@@ -1,8 +1,7 @@
 [package]
 name = "jxl-loader"
 version = "0.5.1"
-# tombi: lint.rules.deprecated.disabled = true
-authors = ["frabera"]
+authors = ["frabera"]  # tombi: lint.rules.deprecated.disabled = true
 edition = "2024"
 description = "JXL decoder for Typst."
 readme = "README.md"
@@ -14,7 +13,7 @@ categories = ["JPEG XL", "image", "jxl", "plugin", "typst", "wasm"]
 crate-type = ["cdylib"]
 
 [dependencies]
-jxl = { version = "0.8.0", default-features = false, features = ["simd128"] }
+jxl = { git = "https://github.com/libjxl/jxl-rs", rev = "19280a9c7a0f5779652b615ab60aeed85bb9b2ca", version = "0.8.0", default-features = false, features = ["simd128"] }
 wasm-minimal-protocol = "0.2.1"
 
 [profile.release]

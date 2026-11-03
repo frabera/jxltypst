@@ -44,11 +44,11 @@
   // 8       samples_per_pixel u8
   // 9..13   icc_len           u32 LE
   // 13..    icc + pixels      [u8]
-  let width = int.from-bytes(data.slice(0, count: 4), signed: false)
-  let height = int.from-bytes(data.slice(4, count: 4), signed: false)
+  let width = int.from-bytes(data.slice(0, 4), signed: false)
+  let height = int.from-bytes(data.slice(4, 8), signed: false)
   let encoding = _SAMPLES_PER_PIXEL_TO_ENCODING.at(data.at(8))
-  let icc-len = int.from-bytes(data.slice(9, count: 4), signed: false)
-  let icc = data.slice(13, count: icc-len)
+  let icc-len = int.from-bytes(data.slice(9, 13), signed: false)
+  let icc = if icc-len > 0 { data.slice(13, count: icc-len) } else { auto }
   let pixels = data.slice(13 + icc-len)
 
   image(
@@ -59,6 +59,6 @@
       height: height,
       encoding: encoding,
     ),
-    ..(if icc-len > 0 { (icc: icc) } else { () }),
+    icc: icc,
   )
 }

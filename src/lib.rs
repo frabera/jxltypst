@@ -46,26 +46,18 @@ fn allocate_output_with_serialized_header(
         out.set_len(total_len);
     }
 
-    let mut offset = 0;
+    out[0..4].copy_from_slice(&(width as u32).to_le_bytes());
+    out[4..8].copy_from_slice(&(height as u32).to_le_bytes());
+    out[8] = samples_per_pixel as u8;
+    out[9..13].copy_from_slice(&(icc_len as u32).to_le_bytes());
 
-    out[offset..offset + 4].copy_from_slice(&(width as u32).to_le_bytes());
-    offset += 4;
-
-    out[offset..offset + 4].copy_from_slice(&(height as u32).to_le_bytes());
-    offset += 4;
-
-    out[offset] = samples_per_pixel as u8;
-    offset += 1;
-
-    out[offset..offset + 4].copy_from_slice(&(icc_len as u32).to_le_bytes());
-    offset += 4;
+    let pixel_offset = HEADER_LEN + icc_len;
 
     if let Some(icc) = icc {
-        out[offset..offset + icc_len].copy_from_slice(icc);
-        offset += icc_len;
+        out[HEADER_LEN..pixel_offset].copy_from_slice(icc);
     }
 
-    Ok((out, offset))
+    Ok((out, pixel_offset))
 }
 
 /// Decode a static JXL image to tightly packed RGB[A]8 or LUMA[A]8 pixels.
@@ -136,7 +128,7 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
     // The ICC profile corresponding to the color space of the decoded image, _if available_.
     let icc = decoder.output_color_profile().unwrap().try_as_icc();
 
-    let (mut out, offset) = allocate_output_with_serialized_header(
+    let (mut out, pixel_offset) = allocate_output_with_serialized_header(
         width,
         height,
         samples_per_pixel,
@@ -144,7 +136,7 @@ pub fn jxl(mut data: &[u8]) -> Result<Vec<u8>, &str> {
         pixel_len,
     )?;
     // The remainder of `out` is the pixel buffer.
-    let pixels = &mut out[offset..];
+    let pixels = &mut out[pixel_offset..];
 
     let mut buffers = [JxlOutputBuffer::new(pixels, height, stride)];
 
